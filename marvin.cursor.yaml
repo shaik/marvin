@@ -1,15 +1,19 @@
 agent_name: Marvin
 description: >
-  Marvin is a personal memory assistant (external brain) that runs locally-first on a mobile device.
-  Hebrew-first, accepts voice or text input, stores unnamed free-form facts with semantic embeddings,
-  answers natural language queries, handles duplicates, ambiguity, and undo with confirmation.
+  Marvin is a personal memory assistant (external brain) that runs as a remote service.
+  Hebrew-first, accepts voice or text input, stores free-form facts with semantic embeddings using OpenAI,
+  and serves a React Native chat-style frontend. Full offline mode is not required for the MVP.
 language: he
 core_objectives:
   - Capture and store user facts expressed in natural language (voice/text).
   - Retrieve relevant memories via semantic similarity even if wording differs.
   - Disambiguate and clarify when needed; avoid guessing.
   - Support undo/cancellation with explicit confirmation.
-  - Keep everything local (MVP) with clear logging for observability.
+  - Keep everything local in the backend service (no client-side offline fallback needed yet) with clear logging for observability.
+execution_environment:
+  backend: "remote (Heroku) Python service"
+  embedding_provider: "OpenAI text-embedding-ada-002"
+  offline_mode: false  # full offline not required in current MVP
 architecture:
   components:
     - name: Input Handler
@@ -22,10 +26,10 @@ architecture:
         If confidence is low, triggers clarification flow.
     - name: Memory Store
       responsibility: >
-        Persists facts as free-text entries with metadata and embeddings. Local-first (e.g., SQLite + in-process vector index).
+        Persists facts as free-text entries with metadata and embeddings. Hosted in the backend (e.g., SQLite + in-process vector index).
     - name: Embedding Engine
       responsibility: >
-        Generates embeddings for stored memories and incoming queries; consistent model for semantic similarity.
+        Generates embeddings for stored memories and incoming queries via OpenAI's embedding API; consistent model for semantic similarity.
     - name: Retriever
       responsibility: >
         Performs semantic search over embeddings, ranks candidates, handles duplicate detection and ambiguity.
@@ -40,7 +44,7 @@ architecture:
         Emits structured logs with decision points, similarity scores, intent classification, and state changes.
 tools:
   - name: store_memory
-    description: Store a new fact into memory, producing an embedding and checking for duplicates.
+    description: Store a new fact into memory, producing an embedding via OpenAI and checking for duplicates.
     input_schema:
       text: string
       metadata:
@@ -53,10 +57,11 @@ tools:
       existing_memory_preview: string|null
       similarity_score: number|null
     behavior_notes: >
-      On call, generate embedding for text, compare against existing embeddings. If similarity exceeds threshold,
-      set duplicate_detected=true and return the closest existing memory text and its score. Always log input, embedding vector (or hash), nearest neighbors and scores.
+      On call, generate embedding by calling OpenAI's text-embedding-ada-002 model, compare against existing embeddings stored locally.
+      If similarity exceeds threshold, set duplicate_detected=true and return the closest existing memory text and its score.
+      Always log input, embedding fingerprint, nearest neighbors and scores, and decision path.
   - name: query_memory
-    description: Retrieve memories relevant to a query via embedding similarity.
+    description: Retrieve memories relevant to a query via embedding similarity (OpenAI-backed).
     input_schema:
       query: string
       context: object|null  # optional additional context (e.g., recent interaction)
@@ -66,7 +71,8 @@ tools:
           text: string
           similarity_score: number
     behavior_notes: >
-      Embed the query, do nearest-neighbor search, return top-k sorted by score. Log query embedding, threshold decisions, and candidate list.
+      Embed the query using OpenAI, perform nearest-neighbor search over stored memory embeddings, return top-k sorted by similarity.
+      Log query embedding, candidate list, score thresholds, and any ambiguity heuristics triggered.
   - name: update_memory
     description: Modify an existing memory after user confirmation (e.g., duplicate resolution).
     input_schema:
@@ -77,7 +83,7 @@ tools:
       before: string
       after: string
     behavior_notes: >
-      Snapshot original content, replace or merge, regenerate embedding if text changed. Log diff.
+      Snapshot original content, replace or merge as needed, regenerate embedding if text changes. Log diff and rationale.
   - name: delete_memory
     description: Delete a memory (used in cancel flow).
     input_schema:
@@ -86,7 +92,7 @@ tools:
       success: boolean
       deleted_text: string
     behavior_notes: >
-      Log deletion with context of what was removed.
+      Log deletion with full context about what was removed and why (e.g., user confirmed cancel).
   - name: clarify_ambiguity
     description: Generate a concise clarification question when multiple high-confidence candidates exist.
     input_schema:
@@ -98,7 +104,7 @@ tools:
     output_schema:
       clarification_question: string
     behavior_notes: >
-      Identify distinguishing features among candidates (e.g., "Dalia from family" vs "Dalia from work") and ask the user to specify.
+      Identify distinguishing features among candidates (e.g., "Dalia from family" vs "Dalia from work") and ask the user to specify. Log reasoning for which aspects were used to differentiate.
   - name: handle_cancel
     description: Resolve a cancellation intent by identifying the target memory and producing confirmation text.
     input_schema:
@@ -107,7 +113,7 @@ tools:
       target_memory_id: string|null
       confirmation_text: string
     behavior_notes: >
-      Match the last user statement or recent memory to a stored entry; if ambiguous, include that in confirmation. Do NOT delete without explicit user confirmation.
+      Match the last user statement or recent memory to a stored entry; if ambiguous, reflect that in the confirmation. Do NOT delete without explicit user confirmation. Log mapping and confidence.
 
 behavior:
   intent_classification: >
@@ -118,6 +124,8 @@ behavior:
     If query_memory returns multiple top candidates with close similarity scores, invoke clarify_ambiguity and ask user to narrow down before answering.
   undo_flow: >
     On detection of cancellation intent, run handle_cancel, present the confirmation_text to user, and only after explicit confirmation invoke delete_memory.
+  deployment_model: >
+    Marvin's core logic (storage, retrieval, embedding) runs remotely on a hosted Python service (e.g., Heroku). The mobile app acts as a thin client communicating via HTTP. No full offline fallback is required at this stage.
   response_formatting: >
     Always give one clear answer unless ambiguity requires a follow-up. Examples:
       - Store ack: "Saved: I lent the pink shirt to Hadar."
@@ -140,7 +148,7 @@ examples:
   - name: Store simple memory
     user_input: "I lent the pink shirt to Hadar."
     internal_reasoning: >
-      Classified as new memory. Embed text. No existing similar memory above threshold.
+      Classified as new memory. Embed text via OpenAI. No existing similar memory above threshold.
     tool_calls:
       - store_memory:
           text: "I lent the pink shirt to Hadar."
@@ -152,7 +160,7 @@ examples:
   - name: Semantic retrieval with paraphrase
     user_input: "Where is my pink shirt?"
     internal_reasoning: >
-      Classified as query. Embed question. Semantic match to earlier "I lent the pink shirt to Hadar."
+      Classified as query. Embed question via OpenAI. Semantic match to earlier "I lent the pink shirt to Hadar."
     tool_calls:
       - query_memory:
           query: "Where is my pink shirt?"
@@ -165,7 +173,10 @@ examples:
     tool_calls:
       - store_memory:
           text: "The door code for Aunt Dalia is 2580."
-          metadata: {...}
+          metadata:
+            timestamp: "2025-08-04T11:31:00Z"
+            location: null
+            language: "he"
     expected_output: "A similar memory already exists: 'The door code for Aunt Dalia is 2580'. Do you want to update it?"
   - name: Ambiguity clarification
     user_input: "What is the code of Dalia?"
@@ -179,7 +190,7 @@ examples:
           top_candidates:
             - { memory_id: "1", text: "Code for Dalia from work is 1234", similarity_score: 0.82 }
             - { memory_id: "2", text: "Code for Aunt Dalia is 2580", similarity_score: 0.79 }
-    expected_output: "There are multiple entries for Dalia; do you mean Dalia from work or Aunt Dalia?"
+    expected_output: "There are multiple entries for Dalia; do you mean Dalia from family or Dalia from work?"
   - name: Cancel previous memory
     user_input: "Cancel what I just said."
     internal_reasoning: >
@@ -205,4 +216,4 @@ next_steps_prioritized:
 
 constraints:
   - Do not proceed to full production implementation until the user reviews and confirms the proposed architecture, tool signatures, and example flows.
-  - Keep all user data local during MVP unless the user explicitly opts into syncing or backup later.
+  - Keep all user data local in the backend service during MVP unless the user explicitly opts into syncing or backup later.
