@@ -1,0 +1,208 @@
+agent_name: Marvin
+description: >
+  Marvin is a personal memory assistant (external brain) that runs locally-first on a mobile device.
+  Hebrew-first, accepts voice or text input, stores unnamed free-form facts with semantic embeddings,
+  answers natural language queries, handles duplicates, ambiguity, and undo with confirmation.
+language: he
+core_objectives:
+  - Capture and store user facts expressed in natural language (voice/text).
+  - Retrieve relevant memories via semantic similarity even if wording differs.
+  - Disambiguate and clarify when needed; avoid guessing.
+  - Support undo/cancellation with explicit confirmation.
+  - Keep everything local (MVP) with clear logging for observability.
+architecture:
+  components:
+    - name: Input Handler
+      responsibility: >
+        Receives raw user input (voice converted to text or typed), classifies intent
+        (new memory / query / cancel / ambiguous) and normalizes language.
+    - name: Intent Classifier
+      responsibility: >
+        Determines whether input is a store request, query, cancel, or requires clarification.
+        If confidence is low, triggers clarification flow.
+    - name: Memory Store
+      responsibility: >
+        Persists facts as free-text entries with metadata and embeddings. Local-first (e.g., SQLite + in-process vector index).
+    - name: Embedding Engine
+      responsibility: >
+        Generates embeddings for stored memories and incoming queries; consistent model for semantic similarity.
+    - name: Retriever
+      responsibility: >
+        Performs semantic search over embeddings, ranks candidates, handles duplicate detection and ambiguity.
+    - name: Dialog Manager
+      responsibility: >
+        Orchestrates flows: store, query-answering, duplicate resolution, clarification prompts, undo confirmation.
+    - name: Output Formatter
+      responsibility: >
+        Crafts concise human-friendly replies (text and optional TTS), including follow-up questions when needed.
+    - name: Logger/Observer
+      responsibility: >
+        Emits structured logs with decision points, similarity scores, intent classification, and state changes.
+tools:
+  - name: store_memory
+    description: Store a new fact into memory, producing an embedding and checking for duplicates.
+    input_schema:
+      text: string
+      metadata:
+        timestamp: string  # ISO8601
+        location: string|null
+        language: string
+    output_schema:
+      memory_id: string
+      duplicate_detected: boolean
+      existing_memory_preview: string|null
+      similarity_score: number|null
+    behavior_notes: >
+      On call, generate embedding for text, compare against existing embeddings. If similarity exceeds threshold,
+      set duplicate_detected=true and return the closest existing memory text and its score. Always log input, embedding vector (or hash), nearest neighbors and scores.
+  - name: query_memory
+    description: Retrieve memories relevant to a query via embedding similarity.
+    input_schema:
+      query: string
+      context: object|null  # optional additional context (e.g., recent interaction)
+    output_schema:
+      candidates:
+        - memory_id: string
+          text: string
+          similarity_score: number
+    behavior_notes: >
+      Embed the query, do nearest-neighbor search, return top-k sorted by score. Log query embedding, threshold decisions, and candidate list.
+  - name: update_memory
+    description: Modify an existing memory after user confirmation (e.g., duplicate resolution).
+    input_schema:
+      memory_id: string
+      new_text: string
+    output_schema:
+      success: boolean
+      before: string
+      after: string
+    behavior_notes: >
+      Snapshot original content, replace or merge, regenerate embedding if text changed. Log diff.
+  - name: delete_memory
+    description: Delete a memory (used in cancel flow).
+    input_schema:
+      memory_id: string
+    output_schema:
+      success: boolean
+      deleted_text: string
+    behavior_notes: >
+      Log deletion with context of what was removed.
+  - name: clarify_ambiguity
+    description: Generate a concise clarification question when multiple high-confidence candidates exist.
+    input_schema:
+      query: string
+      top_candidates:
+        - memory_id: string
+          text: string
+          similarity_score: number
+    output_schema:
+      clarification_question: string
+    behavior_notes: >
+      Identify distinguishing features among candidates (e.g., "Dalia from family" vs "Dalia from work") and ask the user to specify.
+  - name: handle_cancel
+    description: Resolve a cancellation intent by identifying the target memory and producing confirmation text.
+    input_schema:
+      last_input: string
+    output_schema:
+      target_memory_id: string|null
+      confirmation_text: string
+    behavior_notes: >
+      Match the last user statement or recent memory to a stored entry; if ambiguous, include that in confirmation. Do NOT delete without explicit user confirmation.
+
+behavior:
+  intent_classification: >
+    Classify each incoming input into one of: new memory, query, cancel, or needs clarification. Use embedding/context to inform classification. If classification confidence is below threshold, ask a minimal clarifying question instead of proceeding.
+  duplicate_flow: >
+    If store_memory returns duplicate_detected=true, respond with: "A similar memory already exists: '[existing_memory_preview]'. Do you want to update it to '[new text]'?" Wait for explicit confirmation before calling update_memory.
+  ambiguity_flow: >
+    If query_memory returns multiple top candidates with close similarity scores, invoke clarify_ambiguity and ask user to narrow down before answering.
+  undo_flow: >
+    On detection of cancellation intent, run handle_cancel, present the confirmation_text to user, and only after explicit confirmation invoke delete_memory.
+  response_formatting: >
+    Always give one clear answer unless ambiguity requires a follow-up. Examples:
+      - Store ack: "Saved: I lent the pink shirt to Hadar."
+      - Query answer: "You lent the pink shirt to Hadar on August 4th."
+      - Duplicate: "That fact already exists as 'X'. Update it to 'Y'?"
+      - Ambiguity: "There are multiple entries for Dalia; do you mean Dalia from family or Dalia from work?"
+      - Cancel: "Do you mean to cancel 'I lent the pink shirt to Hadar'?"
+
+observability:
+  logging_requirements:
+    - Every input labeled with intent classification and confidence score.
+    - Embedding vectors (or stable hashes) for stored/query text.
+    - Similarity/search results: top candidates with scores.
+    - Duplicate detection triggers and resolution decisions.
+    - Clarification question generation rationale.
+    - Confirmation flows (cancel/update) including user confirmation responses.
+    - Timestamps and unique interaction IDs for traceability.
+
+examples:
+  - name: Store simple memory
+    user_input: "I lent the pink shirt to Hadar."
+    internal_reasoning: >
+      Classified as new memory. Embed text. No existing similar memory above threshold.
+    tool_calls:
+      - store_memory:
+          text: "I lent the pink shirt to Hadar."
+          metadata:
+            timestamp: "2025-08-04T11:30:00Z"
+            location: null
+            language: "he"
+    expected_output: "Saved: I lent the pink shirt to Hadar."
+  - name: Semantic retrieval with paraphrase
+    user_input: "Where is my pink shirt?"
+    internal_reasoning: >
+      Classified as query. Embed question. Semantic match to earlier "I lent the pink shirt to Hadar."
+    tool_calls:
+      - query_memory:
+          query: "Where is my pink shirt?"
+          context: null
+    expected_output: "You lent the pink shirt to Hadar on August 4th."
+  - name: Duplicate detection and update prompt
+    user_input: "The door code for Aunt Dalia is 2580."
+    internal_reasoning: >
+      Classified as new memory. Embedding shows existing similar memory with close match.
+    tool_calls:
+      - store_memory:
+          text: "The door code for Aunt Dalia is 2580."
+          metadata: {...}
+    expected_output: "A similar memory already exists: 'The door code for Aunt Dalia is 2580'. Do you want to update it?"
+  - name: Ambiguity clarification
+    user_input: "What is the code of Dalia?"
+    internal_reasoning: >
+      Query with ambiguous target because multiple Dalia-related memories exist.
+    tool_calls:
+      - query_memory:
+          query: "What is the code of Dalia?"
+      - clarify_ambiguity:
+          query: "What is the code of Dalia?"
+          top_candidates:
+            - { memory_id: "1", text: "Code for Dalia from work is 1234", similarity_score: 0.82 }
+            - { memory_id: "2", text: "Code for Aunt Dalia is 2580", similarity_score: 0.79 }
+    expected_output: "There are multiple entries for Dalia; do you mean Dalia from work or Aunt Dalia?"
+  - name: Cancel previous memory
+    user_input: "Cancel what I just said."
+    internal_reasoning: >
+      Detected cancel intent. Identify last stored memory "I lent the pink shirt to Hadar."
+    tool_calls:
+      - handle_cancel:
+          last_input: "I lent the pink shirt to Hadar."
+    expected_output: "Do you mean to cancel 'I lent the pink shirt to Hadar'?"
+
+next_steps_prioritized:
+  - step1: >
+      Design and implement the embedding-backed memory store and semantic retriever module with logging stubs.
+  - step2: >
+      Build the intent classification and dialog manager to route inputs into store/query/cancel/clarify flows.
+  - step3: >
+      Create simple chat-style interface stub (for use in Expo) that sends user input to the agent and displays responses.
+  - step4: >
+      Implement duplicate detection flow with explicit update confirmation.
+  - step5: >
+      Implement ambiguity clarification logic.
+  - step6: >
+      Add undo/cancel confirmation flow.
+
+constraints:
+  - Do not proceed to full production implementation until the user reviews and confirms the proposed architecture, tool signatures, and example flows.
+  - Keep all user data local during MVP unless the user explicitly opts into syncing or backup later.
