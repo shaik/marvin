@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+agent/marvin_memory.db
+.env
+sources.txt

@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Marvin Memory Assistant",
+    "slug": "marvin-memory-assistant",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2E3440"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.marvin.memory-assistant",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app needs access to the microphone to record voice memos for your personal memory assistant.",
+        "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to convert your voice into text for memory storage."
+      }
+    },
+    "android": {
+      "package": "com.marvin.memoryassistant",
+      "versionCode": 1,
+      "permissions": [
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2E3440"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to provide context for your memories."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
+  }
+}

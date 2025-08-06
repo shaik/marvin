@@ -4,6 +4,8 @@ description: >
   Hebrew-first, accepts voice or text input, stores free-form facts with semantic embeddings using OpenAI,
   and serves a React Native chat-style frontend. Full offline mode is not required for the MVP.
 language: he
+protected_files:
+  - tests/**/*.py
 core_objectives:
   - Capture and store user facts expressed in natural language (voice/text).
   - Retrieve relevant memories via semantic similarity even if wording differs.
@@ -217,3 +219,4 @@ next_steps_prioritized:
 constraints:
   - Do not proceed to full production implementation until the user reviews and confirms the proposed architecture, tool signatures, and example flows.
   - Keep all user data local in the backend service during MVP unless the user explicitly opts into syncing or backup later.
+  - Do not modify any file under tests/ unless the user explicitly requests it.
