@@ -2,7 +2,8 @@
 Configuration settings for Marvin Memory Service using Pydantic BaseSettings.
 """
 
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings
+from pydantic import Field
 from typing import Optional
 
 
