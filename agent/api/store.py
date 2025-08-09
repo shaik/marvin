@@ -18,6 +18,7 @@ from .exceptions import (
 )
 from openai import OpenAIError
 import sqlite3
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
