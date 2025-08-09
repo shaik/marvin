@@ -2,14 +2,20 @@
 Store endpoint router for memory storage operations.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 from datetime import datetime
 import logging
 
 from ..memory import store_memory
 from ..config import Settings, settings
 from .models import StoreRequest, StoreResponse, ErrorResponse
-from .exceptions import MemoryServiceError, InvalidInputError, OpenAIServiceError, DatabaseError
+from .exceptions import (
+    MemoryServiceError,
+    InvalidInputError,
+    OpenAIServiceError,
+    DatabaseError,
+)
 from openai import OpenAIError
 import sqlite3
 from fastapi.responses import JSONResponse
@@ -93,8 +99,12 @@ async def store_memory_endpoint(
             }
         )
         
-        # Return appropriate status code
-        status_code = status.HTTP_409_CONFLICT if result.get("duplicate_detected") else status.HTTP_201_CREATED
+        # Return appropriate status code with proper response
+        status_code = (
+            status.HTTP_409_CONFLICT
+            if result.get("duplicate_detected")
+            else status.HTTP_201_CREATED
+        )
 
         response = StoreResponse(**result)
         return JSONResponse(status_code=status_code, content=response.model_dump())

@@ -29,3 +29,4 @@ This repository contains the Cursor agent configuration (`marvin.cursor.yaml`) a
 cd /Users/shaik/projects/marvin
 mkdir -p app src agent
 touch app/App.js
+```
