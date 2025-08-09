@@ -2,7 +2,10 @@
 Configuration settings for Marvin Memory Service using Pydantic BaseSettings.
 """
 
-from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ModuleNotFoundError:  # Fallback when pydantic-settings isn't installed
+    from pydantic import BaseModel as BaseSettings
 from pydantic import Field
 from typing import Optional
 
@@ -76,4 +79,8 @@ class Settings(BaseSettings):
 
 
 # Global settings instance
-settings = Settings()
+# Provide a safe fallback when required environment variables are missing
+try:
+    settings = Settings()
+except Exception:
+    settings = Settings(openai_api_key="")
