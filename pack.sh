@@ -64,8 +64,9 @@ add_files_pattern() {
         # Remove the ./ prefix
         file="${file#./}"
         
-        # Skip files in excluded directories
-        if [[ "$file" =~ ^(node_modules|\.git|__pycache__|\.pytest_cache|build|dist|\.expo|\.vscode|\.idea)/ ]]; then
+        # Skip files in excluded directories (including lib/dependency folders)
+        # Excluded: development tools, git, compiled files, dependencies, virtual environments
+        if [[ "$file" =~ ^(node_modules|\.git|__pycache__|\.pytest_cache|build|dist|\.expo|\.vscode|\.idea|venv|lib|libs|vendor|site-packages)/ ]]; then
             continue
         fi
         
@@ -137,7 +138,7 @@ find . -name "*.sh" -type f | while read -r file; do
     file="${file#./}"
     
     # Skip this script and files in excluded directories
-    if [[ "$file" == "pack.sh" ]] || [[ "$file" =~ ^(node_modules|\.git)/ ]]; then
+    if [[ "$file" == "pack.sh" ]] || [[ "$file" =~ ^(node_modules|\.git|venv|lib|libs|vendor|site-packages)/ ]]; then
         continue
     fi
     
