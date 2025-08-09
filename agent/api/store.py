@@ -12,6 +12,7 @@ from .models import StoreRequest, StoreResponse, ErrorResponse
 from .exceptions import MemoryServiceError, InvalidInputError, OpenAIServiceError, DatabaseError
 from openai import OpenAIError
 import sqlite3
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +95,9 @@ async def store_memory_endpoint(
         
         # Return appropriate status code
         status_code = status.HTTP_409_CONFLICT if result.get("duplicate_detected") else status.HTTP_201_CREATED
-        
+
         response = StoreResponse(**result)
-        return response
+        return JSONResponse(status_code=status_code, content=response.model_dump())
         
     except InvalidInputError:
         raise

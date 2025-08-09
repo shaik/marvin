@@ -158,10 +158,9 @@ class TestDuplicateDetection:
         
         # Step 2: Store the exact same memory again
         second_store_response = client.post("/api/v1/store", json=store_payload)
-        
-        # The response might be 201 (created) or 409 (conflict) depending on implementation
-        # Both are acceptable for duplicate detection
-        assert second_store_response.status_code in [201, 409]
+
+        # A duplicate store should respond with a 409 Conflict
+        assert second_store_response.status_code == 409
         
         second_store_data = second_store_response.json()
         assert "duplicate_detected" in second_store_data
