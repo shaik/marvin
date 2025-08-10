@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from openai import OpenAI, OpenAIError
 
+from .api.exceptions import DatabaseError
+
 # Configure structured JSON logging
 class StructuredLogger:
     """Custom structured logger for JSON output."""
@@ -679,3 +681,54 @@ def get_cache_stats() -> Dict[str, Any]:
     logger.info("cache_stats_requested", **stats)
     
     return stats
+
+
+def get_memory_by_id(memory_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a specific memory by its ID.
+    
+    Args:
+        memory_id: UUID of the memory to retrieve
+        
+    Returns:
+        Dictionary with memory details if found, None if not found
+        
+    Raises:
+        ValueError: If memory_id is empty
+        DatabaseError: If database operation fails
+    """
+    if not memory_id or not memory_id.strip():
+        raise ValueError("Memory ID cannot be empty")
+    
+    try:
+        with sqlite3.connect(settings.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, text, timestamp, language, location
+                FROM memories 
+                WHERE id = ?
+            """, (memory_id.strip(),))
+            
+            row = cursor.fetchone()
+            if not row:
+                logger.info("memory_not_found", memory_id=memory_id[:8])
+                return None
+                
+            memory_data = {
+                "memory_id": row[0],
+                "text": row[1], 
+                "timestamp": row[2],
+                "language": row[3],
+                "location": row[4]
+            }
+            
+            logger.info(
+                "memory_retrieved_by_id",
+                memory_id=memory_id[:8],
+                text_length=len(memory_data["text"])
+            )
+            
+            return memory_data
+            
+    except sqlite3.Error as e:
+        logger.error("database_error_get_memory", memory_id=memory_id[:8], error=str(e))
+        raise DatabaseError(f"Failed to retrieve memory: {e}")

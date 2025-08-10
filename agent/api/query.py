@@ -30,6 +30,60 @@ def get_settings() -> Settings:
     return settings
 
 
+def _generate_clarification_question(query: str, top_candidates: list) -> str:
+    """Generate a clarification question based on query and candidates.
+    
+    Args:
+        query: The original user query
+        top_candidates: List of top memory candidates (at least 2)
+        
+    Returns:
+        A clarification question string
+    """
+    import re
+    
+    # Extract words from query (focus on capitalized words as potential proper nouns)
+    query_words = query.split()
+    capitalized_words = [word.strip('.,!?') for word in query_words if word[0].isupper()]
+    
+    # Find capitalized words (proper nouns) that appear in multiple candidate texts
+    # These are usually the most important disambiguating terms
+    proper_noun_subjects = []
+    for word in capitalized_words:
+        # Skip common question words even if capitalized
+        if word.lower() in {"what", "where", "when", "who", "how", "which", "why"}:
+            continue
+        # Normalize the word by removing possessive forms and punctuation
+        normalized_word = word.lower().rstrip("'s").strip(".,!?'\"")
+        candidate_matches = sum(1 for candidate in top_candidates if normalized_word in candidate.text.lower())
+        if candidate_matches >= 2:
+            # Store the original capitalized form for the question
+            original_word = word.rstrip("'s").strip(".,!?'\"")
+            proper_noun_subjects.append(original_word)
+    
+    # If we found proper nouns, prioritize them
+    if proper_noun_subjects:
+        subject = proper_noun_subjects[0]  # Use the first found proper noun
+        return f"There are multiple entries mentioning '{subject}'. Which one do you mean?"
+    
+    # If no proper nouns, check longer words (but avoid common words like "code")
+    common_words = {"code", "what", "where", "when", "who", "how", "the", "and", "for", "with"}
+    longer_words = [word.strip('.,!?').lower() for word in query_words if len(word) > 3 and word.lower() not in common_words]
+    
+    ambiguous_subjects = []
+    for word in longer_words:
+        candidate_matches = sum(1 for candidate in top_candidates if word in candidate.text.lower())
+        if candidate_matches >= 2:
+            ambiguous_subjects.append(word)
+    
+    # Generate question based on found ambiguous subjects
+    if ambiguous_subjects:
+        subject = ambiguous_subjects[0]  # Use the first found ambiguous subject
+        return f"There are multiple entries mentioning '{subject}'. Which one do you mean?"
+    else:
+        return "There are multiple matching entries. Which one do you mean?"
+
+
 @router.post(
     "",
     response_model=QueryResponse,
@@ -85,16 +139,53 @@ async def query_memory_endpoint(
             for candidate in candidates
         ]
         
+        # Check if clarification is needed
+        clarification_required = False
+        clarification_question = None
+        
+        if (len(memory_candidates) >= app_settings.clarify_min_candidates):
+            # Check if top two scores are too close
+            top1_score = memory_candidates[0].similarity_score
+            top2_score = memory_candidates[1].similarity_score
+            score_gap = abs(top1_score - top2_score)
+            
+            if score_gap <= app_settings.clarify_score_gap:
+                clarification_required = True
+                
+                # Generate clarification question
+                clarification_question = _generate_clarification_question(
+                    request.query.strip(), 
+                    memory_candidates[:2]
+                )
+                
+                # Log clarification trigger
+                logger.info(
+                    "Clarification triggered due to close scores",
+                    extra={
+                        "top1_memory_id": memory_candidates[0].memory_id[:8],
+                        "top1_score": top1_score,
+                        "top2_memory_id": memory_candidates[1].memory_id[:8], 
+                        "top2_score": top2_score,
+                        "score_gap": score_gap,
+                        "clarify_threshold": app_settings.clarify_score_gap
+                    }
+                )
+        
         # Log success
         logger.info(
             "Query operation completed",
             extra={
                 "results_count": len(memory_candidates),
-                "top_scores": [c.similarity_score for c in memory_candidates[:3]]
+                "top_scores": [c.similarity_score for c in memory_candidates[:3]],
+                "clarification_required": clarification_required
             }
         )
         
-        return QueryResponse(candidates=memory_candidates)
+        return QueryResponse(
+            candidates=memory_candidates,
+            clarification_required=clarification_required,
+            clarification_question=clarification_question
+        )
         
     except InvalidInputError:
         raise

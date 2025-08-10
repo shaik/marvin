@@ -72,6 +72,19 @@ class Settings(BaseSettings):
         description="Application version"
     )
     
+    # Clarification Configuration
+    clarify_score_gap: float = Field(
+        default=0.05,
+        env="CLARIFY_SCORE_GAP",
+        description="Maximum allowed score gap between top-1 and top-2 to trigger clarification"
+    )
+    
+    clarify_min_candidates: int = Field(
+        default=2,
+        env="CLARIFY_MIN_CANDIDATES", 
+        description="Minimum number of candidates required to trigger clarification"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
