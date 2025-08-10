@@ -1,7 +1,9 @@
 fastapi
 uvicorn[standard]
 pydantic
-pydantic[dotenv]
+pydantic-settings
 openai
 numpy
 python-dotenv
+pytest
+httpx
