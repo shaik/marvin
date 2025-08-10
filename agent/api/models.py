@@ -2,7 +2,7 @@
 Pydantic models for request and response schemas.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, constr
 from typing import List, Optional, Any, Dict
 
 
@@ -28,12 +28,12 @@ class UpdateRequest(BaseModel):
 
 class DeleteRequest(BaseModel):
     """Request model for deleting a memory."""
-    memory_id: str = Field(..., description="UUID of the memory to delete")
+    memory_id: constr(min_length=1) = Field(..., description="UUID of the memory to delete")
 
 
 class CancelRequest(BaseModel):
     """Request model for handling cancellation intent."""
-    last_input: str = Field(..., description="Last user input to identify target memory")
+    last_input_text: constr(min_length=1) = Field(..., description="Last user input text to identify target memory")
 
 
 class ClarifyRequest(BaseModel):
@@ -76,14 +76,13 @@ class UpdateResponse(BaseModel):
 class DeleteResponse(BaseModel):
     """Response model for memory deletion operation."""
     success: bool = Field(..., description="Whether the deletion was successful")
-    deleted_text: Optional[str] = Field(default=None, description="Text content of deleted memory")
-    error: Optional[str] = Field(default=None, description="Error message if unsuccessful")
+    deleted_text: str = Field(..., description="Text content of deleted memory")
 
 
 class CancelResponse(BaseModel):
     """Response model for cancellation handling."""
-    target_memory_id: Optional[str] = Field(default=None, description="UUID of target memory for cancellation")
     confirmation_text: str = Field(..., description="Confirmation message for user")
+    target_memory_id: Optional[str] = Field(default=None, description="UUID of target memory for cancellation")
 
 
 class ClarifyResponse(BaseModel):

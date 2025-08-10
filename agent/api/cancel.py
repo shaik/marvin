@@ -1,15 +1,14 @@
 """
-Cancel endpoint router for handling cancellation intents.
+Cancel endpoint router for handling undo/cancellation operations.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 import logging
 
-from ..memory import query_memory
+from ..memory import get_most_recent_memory_by_text
 from ..config import Settings, settings
 from .models import CancelRequest, CancelResponse, ErrorResponse
-from .exceptions import MemoryServiceError, InvalidInputError, OpenAIServiceError, DatabaseError
-from openai import OpenAIError
+from .exceptions import MemoryServiceError, InvalidInputError, DatabaseError
 import sqlite3
 
 logger = logging.getLogger(__name__)
@@ -18,8 +17,8 @@ router = APIRouter(
     prefix="/cancel",
     tags=["Memory Operations"],
     responses={
-        400: {"model": ErrorResponse, "description": "Invalid input data"},
-        503: {"model": ErrorResponse, "description": "OpenAI service unavailable"},
+        400: {"model": ErrorResponse, "description": "Invalid request parameters"},
+        404: {"model": ErrorResponse, "description": "No matching memory found"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     }
 )
@@ -34,87 +33,82 @@ def get_settings() -> Settings:
     "",
     response_model=CancelResponse,
     status_code=status.HTTP_200_OK,
-    summary="Handle cancellation intent",
+    summary="Find memory to cancel by last input text",
     description="""
-    Handle user cancellation intent by identifying the target memory.
+    Find the most recent memory that exactly matches the provided text for cancellation.
     
     The system will:
-    1. Search for memories similar to the last input text
-    2. Find the best matching memory if similarity is high enough (>0.7)
-    3. Return a confirmation message for the user to approve cancellation
+    1. Search for the most recent memory with text exactly matching last_input_text
+    2. If found, return confirmation text and target memory ID
+    3. If not found, return 404 error
     
-    This is used to identify which memory the user wants to cancel before
-    actually deleting it.
+    This is the first step in the cancel/undo flow - the actual deletion requires
+    a separate call to the delete endpoint with the returned memory ID.
     """,
     responses={
-        200: {"description": "Cancellation target identified or no match found"},
+        200: {"description": "Memory found for cancellation"},
+        404: {"description": "No matching memory found to cancel"},
     }
 )
-async def handle_cancel_endpoint(
+async def cancel_memory_endpoint(
     request: CancelRequest,
     app_settings: Settings = Depends(get_settings)
 ) -> CancelResponse:
-    """Handle cancellation intent by identifying the target memory."""
+    """Find memory to cancel based on last input text."""
     
     # Log the request
     logger.info(
-        "Cancel request received",
+        "cancel_request_received",
         extra={
-            "last_input_length": len(request.last_input)
+            "last_input_text_length": len(request.last_input_text)
         }
     )
     
     try:
         # Validate input
-        if not request.last_input.strip():
-            raise InvalidInputError("Last input cannot be empty", field="last_input")
+        if not request.last_input_text.strip():
+            raise InvalidInputError("Last input text cannot be empty", field="last_input_text")
         
-        # Find memories similar to the last input
-        candidates = query_memory(request.last_input.strip(), top_k=1)
+        # Find the most recent memory that matches the text exactly
+        matching_memory = get_most_recent_memory_by_text(request.last_input_text.strip())
         
-        if not candidates:
-            logger.info("No memories found for cancellation")
-            return CancelResponse(
-                target_memory_id=None,
-                confirmation_text=f"No recent memory found matching '{request.last_input}'. Nothing to cancel."
-            )
-        
-        best_match = candidates[0]
-        
-        # Only suggest cancellation if similarity is high enough
-        if best_match["similarity_score"] > 0.7:
+        if not matching_memory:
             logger.info(
-                "Cancellation target identified",
+                "cancel_no_match",
                 extra={
-                    "target_memory_id": best_match["memory_id"],
-                    "similarity_score": best_match["similarity_score"]
+                    "last_input_text": request.last_input_text[:50],
+                    "text_length": len(request.last_input_text)
                 }
             )
-            return CancelResponse(
-                target_memory_id=best_match["memory_id"],
-                confirmation_text=f"Do you mean to cancel '{best_match['text']}'?"
-            )
-        else:
-            logger.info(
-                "No clear cancellation target found",
-                extra={
-                    "best_similarity": best_match["similarity_score"],
-                    "threshold": 0.7
-                }
-            )
-            return CancelResponse(
-                target_memory_id=None,
-                confirmation_text=f"No clear match found for '{request.last_input}'. Please be more specific about what to cancel."
+            raise HTTPException(
+                status_code=404,
+                detail="No matching memory found to cancel"
             )
         
+        # Log successful match
+        logger.info(
+            "cancel_candidate_found",
+            extra={
+                "target_memory_id": matching_memory["id"][:8],
+                "matched_text_length": len(matching_memory["text"])
+            }
+        )
+        
+        # Return confirmation response
+        confirmation_text = f"Do you mean to cancel '{matching_memory['text']}'?"
+        
+        return CancelResponse(
+            confirmation_text=confirmation_text,
+            target_memory_id=matching_memory["id"]
+        )
+        
+    except HTTPException:
+        raise
     except InvalidInputError:
         raise
-    except OpenAIError as e:
-        logger.error("OpenAI service error during cancel", extra={"error": str(e)})
-        raise OpenAIServiceError(e)
     except sqlite3.Error as e:
         logger.error("Database error during cancel", extra={"error": str(e)})
         raise DatabaseError(e)
     except Exception as e:
         logger.error("Unexpected error during cancel", extra={"error": str(e)}, exc_info=True)
-        raise MemoryServiceError("Failed to handle cancel request", status_code=500)
+        raise MemoryServiceError("Failed to process cancel request", status_code=500)

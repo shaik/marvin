@@ -5,7 +5,7 @@ Provides HTTP API endpoints for storing and querying memories with semantic sear
 
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
@@ -16,6 +16,7 @@ import os
 # Import configuration and dependencies
 from .config import settings
 from .memory import init_db
+from .security import api_key_guard
 
 # Import API routers
 from .api.store import router as store_router
@@ -154,14 +155,14 @@ async def health_check() -> HealthResponse:
         logger.error("Health check failed", extra={"error": str(e)})
         raise MemoryServiceError("Service health check failed", status_code=503)
 
-# Include all API routers
-app.include_router(store_router, prefix="/api/v1")
-app.include_router(query_router, prefix="/api/v1")
-app.include_router(update_router, prefix="/api/v1")
-app.include_router(delete_router, prefix="/api/v1")
-app.include_router(cancel_router, prefix="/api/v1")
-app.include_router(clarify_router, prefix="/api/v1")
-app.include_router(admin_router, prefix="/api/v1")
+# Include all API routers with authentication
+app.include_router(store_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+app.include_router(query_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+app.include_router(update_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+app.include_router(delete_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+app.include_router(cancel_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+app.include_router(clarify_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+app.include_router(admin_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
 
 # Legacy endpoint redirects for backward compatibility
 @app.post("/store")

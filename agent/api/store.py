@@ -5,6 +5,7 @@ Store endpoint router for memory storage operations.
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from datetime import datetime
+from ..utils.time import utc_now_iso_z
 import logging
 
 from ..memory import store_memory
@@ -81,7 +82,7 @@ async def store_memory_endpoint(
         
         # Prepare metadata
         metadata = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": utc_now_iso_z(),
             "language": request.language,
             "location": request.location
         }

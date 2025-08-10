@@ -11,6 +11,7 @@ import sqlite3
 import time
 import uuid
 from datetime import datetime
+from .utils.time import utc_now_iso_z
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -38,7 +39,7 @@ class StructuredLogger:
     def _log(self, level: str, event: str, **details: Any) -> None:
         """Log structured JSON message."""
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": utc_now_iso_z(),
             "level": level,
             "event": event,
             "module": "memory",
@@ -732,3 +733,54 @@ def get_memory_by_id(memory_id: str) -> Optional[Dict[str, Any]]:
     except sqlite3.Error as e:
         logger.error("database_error_get_memory", memory_id=memory_id[:8], error=str(e))
         raise DatabaseError(f"Failed to retrieve memory: {e}")
+
+
+def get_most_recent_memory_by_text(text: str) -> Optional[Dict[str, Any]]:
+    """Retrieve the most recent memory that exactly matches the given text.
+    
+    Args:
+        text: Exact text to match against stored memories
+        
+    Returns:
+        Dictionary with memory details if found, None if not found
+        Contains: {"id": str, "text": str}
+        
+    Raises:
+        ValueError: If text is empty
+        DatabaseError: If database operation fails
+    """
+    if not text or not text.strip():
+        raise ValueError("Text cannot be empty")
+    
+    try:
+        with sqlite3.connect(settings.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, text
+                FROM memories 
+                WHERE text = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """, (text.strip(),))
+            
+            row = cursor.fetchone()
+            if not row:
+                logger.info("no_memory_found_for_text", text_length=len(text))
+                return None
+                
+            memory_data = {
+                "id": row[0],
+                "text": row[1]
+            }
+            
+            logger.info(
+                "memory_found_by_text",
+                memory_id=memory_data["id"][:8],
+                text_length=len(memory_data["text"])
+            )
+            
+            return memory_data
+            
+    except sqlite3.Error as e:
+        logger.error("database_error_get_memory_by_text", text_length=len(text), error=str(e))
+        raise DatabaseError(f"Failed to retrieve memory by text: {e}")

@@ -7,7 +7,7 @@ try:
 except ModuleNotFoundError:  # Fallback when pydantic-settings isn't installed
     from pydantic import BaseModel as BaseSettings
 from pydantic import Field
-from typing import Optional
+from typing import Optional, Union
 
 
 class Settings(BaseSettings):
@@ -38,6 +38,13 @@ class Settings(BaseSettings):
         default=5000,
         env="PORT",
         description="Server port number"
+    )
+    
+    # Authentication Configuration
+    api_auth_key: Union[str, None] = Field(
+        default=None,
+        env="API_AUTH_KEY",
+        description="API key for authenticating requests to /api/v1/* endpoints. If None/unset, authentication is disabled for local development."
     )
     
     # CORS Configuration

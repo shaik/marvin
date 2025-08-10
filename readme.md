@@ -122,6 +122,61 @@ Response: {
 }
 ```
 
+## 🔐 Authentication
+
+All `/api/v1/*` endpoints require API key authentication when `API_AUTH_KEY` is configured. The `/health` endpoint and legacy endpoints (`/store`, `/query`) remain open for backward compatibility.
+
+### Configuration
+
+**Local Development (.env file):**
+```bash
+# Enable authentication
+API_AUTH_KEY=your-secret-api-key-here
+
+# Disable authentication (default)
+# API_AUTH_KEY=  # (unset or empty)
+```
+
+**Heroku Configuration:**
+```bash
+heroku config:set API_AUTH_KEY=your-production-api-key-here
+```
+
+### Usage Examples
+
+**Authenticated Requests (when API_AUTH_KEY is set):**
+
+```bash
+# Set your base URL and API key
+export BASE="https://your-app.herokuapp.com"
+export API_AUTH_KEY="your-secret-api-key"
+
+# Store memory (protected)
+curl -s -X POST "$BASE/api/v1/store" \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: $API_AUTH_KEY" \
+  -d '{"text":"Auth test memory","language":"he"}'
+
+# Query memory (protected)
+curl -s -X POST "$BASE/api/v1/query" \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: $API_AUTH_KEY" \
+  -d '{"query":"Auth test memory"}'
+
+# Health check (always open)
+curl -s "$BASE/health"
+
+# Legacy endpoints (always open)
+curl -s -X POST "$BASE/store" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Legacy store","language":"he"}'
+```
+
+**Authentication Behavior:**
+- **API_AUTH_KEY set**: All `/api/v1/*` endpoints require `X-API-KEY` header
+- **API_AUTH_KEY unset/None**: Authentication disabled (local development)
+- **Missing/Invalid Key**: Returns `401 Unauthorized` with error message
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -139,6 +194,7 @@ pip install -r requirements.txt
 
 # Configuration
 export OPENAI_API_KEY="your-api-key-here"
+export API_AUTH_KEY="your-secret-api-key"  # Optional: enables authentication
 export CLARIFY_SCORE_GAP=0.05  # Optional: clarification sensitivity
 export CLARIFY_MIN_CANDIDATES=2  # Optional: min candidates for clarification
 
@@ -172,6 +228,7 @@ pytest tests/e2e/ -v                  # E2E tests (requires OPENAI_API_KEY)
 
 ### Environment Variables
 - `OPENAI_API_KEY` - Required for embedding generation
+- `API_AUTH_KEY` - API key for authentication (optional, auth disabled if unset)
 - `DB_PATH` - SQLite database path (default: `agent/marvin_memory.db`)
 - `CLARIFY_SCORE_GAP` - Similarity threshold for clarification (default: 0.05)
 - `CLARIFY_MIN_CANDIDATES` - Minimum candidates needed for clarification (default: 2)
