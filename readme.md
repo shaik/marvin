@@ -1,5 +1,7 @@
 # Marvin — Personal Memory Assistant
 
+[![Tests](https://github.com/shaik/marvin/actions/workflows/tests.yml/badge.svg)](https://github.com/shaik/marvin/actions/workflows/tests.yml)
+
 Marvin is a semantic memory assistant with embedding-based storage, intelligent clarification, and natural language interaction. The system consists of a Python FastAPI backend with OpenAI embeddings and a React Native frontend for mobile access.
 
 ## 🚀 Current Status
@@ -187,6 +189,21 @@ The clarification system can be fine-tuned via configuration:
 - Temporary SQLite databases per test
 - Mocked OpenAI for predictable results
 - Deterministic embeddings for clarification scenarios
+
+### Continuous Integration
+The project includes automated CI/CD via GitHub Actions:
+- **Automated Testing**: Runs on every push and pull request to `master`
+- **Unit Tests**: Sanity and clarification tests with mocked dependencies
+- **Python 3.11**: Tested on latest Ubuntu with pip caching
+- **Optional E2E**: Commented workflow for live OpenAI integration tests
+
+```bash
+# CI runs equivalent to:
+pytest -q  # Unit tests only (fast, no external dependencies)
+
+# Optional E2E (requires OPENAI_API_KEY secret):
+pytest -m e2e -q  # Live tests with real OpenAI API
+```
 
 ## 🚢 Deployment
 
