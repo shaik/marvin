@@ -2,10 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [ master, codex ]
+    branches: [ master ]
   pull_request:
-    branches: [ master, codex ]
-
+    branches: [ master ]
 jobs:
   test:
     runs-on: ubuntu-latest
