@@ -36,6 +36,12 @@ class CancelRequest(BaseModel):
     last_input: str = Field(..., description="Last user input to identify target memory")
 
 
+class ClarifyRequest(BaseModel):
+    """Request model for clarification resolution."""
+    query: str = Field(..., description="Original query that needed clarification", min_length=1)
+    chosen_memory_id: str = Field(..., description="UUID of the chosen memory from clarification candidates")
+
+
 # Response Models
 class StoreResponse(BaseModel):
     """Response model for memory storage operation."""
@@ -55,6 +61,8 @@ class MemoryCandidate(BaseModel):
 class QueryResponse(BaseModel):
     """Response model for memory query operation."""
     candidates: List[MemoryCandidate] = Field(..., description="List of matching memory candidates")
+    clarification_required: Optional[bool] = Field(default=None, description="Whether clarification is needed due to ambiguous results")
+    clarification_question: Optional[str] = Field(default=None, description="Question to help user clarify their intent")
 
 
 class UpdateResponse(BaseModel):
@@ -83,6 +91,9 @@ class ClarifyResponse(BaseModel):
     clarification_question: Optional[str] = Field(default=None, description="Generated clarification question")
     message: Optional[str] = Field(default=None, description="Status message")
     candidates: Optional[List[MemoryCandidate]] = Field(default=None, description="Ambiguous memory candidates")
+    clarification_resolved: Optional[bool] = Field(default=None, description="Whether clarification was resolved")
+    memory_id: Optional[str] = Field(default=None, description="UUID of the resolved memory")
+    text: Optional[str] = Field(default=None, description="Text content of the resolved memory")
 
 
 class HealthResponse(BaseModel):

@@ -5,9 +5,9 @@ Clarify endpoint router for handling ambiguous queries.
 from fastapi import APIRouter, Depends, status
 import logging
 
-from ..memory import query_memory
+from ..memory import query_memory, get_memory_by_id
 from ..config import Settings, settings
-from .models import QueryRequest, ClarifyResponse, MemoryCandidate, ErrorResponse
+from .models import QueryRequest, ClarifyRequest, ClarifyResponse, MemoryCandidate, ErrorResponse
 from .exceptions import MemoryServiceError, InvalidInputError, OpenAIServiceError, DatabaseError
 from openai import OpenAIError
 import sqlite3
@@ -34,35 +34,36 @@ def get_settings() -> Settings:
     "",
     response_model=ClarifyResponse,
     status_code=status.HTTP_200_OK,
-    summary="Generate clarification for ambiguous queries",
+    summary="Resolve clarification by selecting a specific memory",
     description="""
-    Generate clarification questions when multiple high-confidence candidates exist.
+    Resolve user clarification by selecting a specific memory from ambiguous candidates.
     
     The system will:
-    1. Search for memories matching the query (top 5 results)
-    2. Analyze similarity scores to detect ambiguity
-    3. Generate a clarification question if multiple high-scoring results exist
-    4. Return candidates for user selection
+    1. Validate that the chosen memory ID exists in the database
+    2. Retrieve the complete memory details for the chosen ID
+    3. Return confirmation of the clarification resolution
     
-    Ambiguity is detected when:
-    - Multiple results have high similarity scores (>0.7)
-    - The difference between top scores is small (<0.1)
+    This endpoint is used after a query returned clarification_required=true,
+    and the user has selected one of the candidate memories.
     """,
     responses={
-        200: {"description": "Clarification generated or no ambiguity detected"},
+        200: {"description": "Clarification resolved successfully"},
+        404: {"description": "Chosen memory ID not found"},
+        422: {"description": "Invalid request parameters"},
     }
 )
-async def clarify_ambiguity_endpoint(
-    request: QueryRequest,
+async def clarify_resolution_endpoint(
+    request: ClarifyRequest,
     app_settings: Settings = Depends(get_settings)
 ) -> ClarifyResponse:
-    """Generate clarification questions when multiple high-confidence candidates exist."""
+    """Resolve clarification by selecting a specific memory from ambiguous candidates."""
     
     # Log the request
     logger.info(
-        "Clarification request received",
+        "Clarification resolution request received",
         extra={
-            "query_length": len(request.query)
+            "query_length": len(request.query),
+            "chosen_memory_id": request.chosen_memory_id[:8]
         }
     )
     
@@ -71,77 +72,42 @@ async def clarify_ambiguity_endpoint(
         if not request.query.strip():
             raise InvalidInputError("Query cannot be empty", field="query")
         
-        # Get more candidates to check for ambiguity
-        candidates = query_memory(request.query.strip(), top_k=5)
+        if not request.chosen_memory_id.strip():
+            raise InvalidInputError("Chosen memory ID cannot be empty", field="chosen_memory_id")
         
-        if len(candidates) < 2:
-            logger.info("No ambiguity detected - insufficient candidates")
-            return ClarifyResponse(
-                clarification_question=None,
-                message="No ambiguity detected - single clear result.",
-                candidates=[
-                    MemoryCandidate(
-                        memory_id=c["memory_id"],
-                        text=c["text"],
-                        similarity_score=c["similarity_score"]
-                    ) for c in candidates
-                ]
-            )
+        # Retrieve the chosen memory by ID
+        chosen_memory = get_memory_by_id(request.chosen_memory_id.strip())
         
-        # Check if top candidates have similar high scores (indicating ambiguity)
-        top_score = candidates[0]["similarity_score"]
-        second_score = candidates[1]["similarity_score"]
-        
-        if top_score > 0.7 and (top_score - second_score) < 0.1:
-            # High ambiguity - generate clarification question
-            clarification = "I found multiple similar memories. Do you mean:\n"
-            top_candidates = candidates[:3]
-            
-            for i, candidate in enumerate(top_candidates, 1):
-                preview = candidate["text"][:80] + "..." if len(candidate["text"]) > 80 else candidate["text"]
-                clarification += f"{i}. {preview}\n"
-            clarification += "Please specify which one you're looking for."
-            
-            logger.info(
-                "Ambiguity detected - clarification generated",
+        if not chosen_memory:
+            logger.warning(
+                "Clarification resolution failed - memory not found",
                 extra={
-                    "top_score": top_score,
-                    "second_score": second_score,
-                    "score_difference": top_score - second_score,
-                    "candidates_count": len(top_candidates)
+                    "chosen_memory_id": request.chosen_memory_id[:8],
+                    "query": request.query[:50]
                 }
             )
-            
-            return ClarifyResponse(
-                clarification_question=clarification,
-                candidates=[
-                    MemoryCandidate(
-                        memory_id=c["memory_id"],
-                        text=c["text"],
-                        similarity_score=c["similarity_score"]
-                    ) for c in top_candidates
-                ]
+            raise InvalidInputError(
+                f"Memory with ID {request.chosen_memory_id[:8]} not found", 
+                field="chosen_memory_id"
             )
-        else:
-            logger.info(
-                "No ambiguity detected - clear result found",
-                extra={
-                    "top_score": top_score,
-                    "second_score": second_score,
-                    "score_difference": top_score - second_score
-                }
-            )
-            return ClarifyResponse(
-                clarification_question=None,
-                message="Clear result found - no clarification needed.",
-                candidates=[
-                    MemoryCandidate(
-                        memory_id=c["memory_id"],
-                        text=c["text"],
-                        similarity_score=c["similarity_score"]
-                    ) for c in candidates
-                ]
-            )
+        
+        # Log successful resolution
+        logger.info(
+            "Clarification resolved successfully",
+            extra={
+                "chosen_memory_id": request.chosen_memory_id[:8],
+                "resolved_text_length": len(chosen_memory["text"]),
+                "query": request.query[:50]
+            }
+        )
+        
+        # Return resolution confirmation
+        return ClarifyResponse(
+            clarification_resolved=True,
+            memory_id=chosen_memory["memory_id"],
+            text=chosen_memory["text"],
+            message=f"Clarification resolved. Selected memory: {chosen_memory['text'][:100]}{'...' if len(chosen_memory['text']) > 100 else ''}"
+        )
         
     except InvalidInputError:
         raise
