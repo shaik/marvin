@@ -129,6 +129,7 @@ Response: {
 ```bash
 # Clone and setup
 cd /Users/shaik/projects/marvin
+
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -277,3 +278,4 @@ The project includes a comprehensive Cursor agent configuration (`marvin.cursor.
 ---
 
 **Marvin is ready for production use with full semantic memory capabilities and intelligent clarification! 🧠✨**
+

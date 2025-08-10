@@ -5,7 +5,7 @@ Admin endpoint router for debugging and administrative operations.
 from fastapi import APIRouter, Depends, status
 import logging
 
-from ..memory import query_memory, get_cache_stats, clear_embedding_cache
+from ..memory import get_cache_stats, clear_embedding_cache
 from ..config import Settings, settings
 from .models import MemoriesResponse, MemoryCandidate, ErrorResponse
 from .exceptions import MemoryServiceError, OpenAIServiceError, DatabaseError
@@ -54,17 +54,23 @@ async def get_all_memories(
     logger.info("Admin request to get all memories")
     
     try:
-        # Query all memories with a broad search (empty query returns all with low scores)
-        candidates = query_memory("", top_k=1000)  # Get all memories
-        
+        # Retrieve all memories directly from the database
+        conn = sqlite3.connect(app_settings.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT id, text FROM memories")
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
         # Convert to response models
         memory_candidates = [
             MemoryCandidate(
-                memory_id=candidate["memory_id"],
-                text=candidate["text"],
-                similarity_score=candidate["similarity_score"]
+                memory_id=row[0],
+                text=row[1],
+                similarity_score=0.0
             )
-            for candidate in candidates
+            for row in rows
         ]
         
         logger.info(
