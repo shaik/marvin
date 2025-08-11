@@ -25,6 +25,7 @@ from .api.update import router as update_router
 from .api.delete import router as delete_router
 from .api.cancel import router as cancel_router
 from .api.clarify import router as clarify_router
+from .api.readonly import router as readonly_router
 from .api.admin import router as admin_router
 
 # Import exception handlers
@@ -162,6 +163,7 @@ app.include_router(update_router, prefix="/api/v1", dependencies=[Depends(api_ke
 app.include_router(delete_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
 app.include_router(cancel_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
 app.include_router(clarify_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+app.include_router(readonly_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
 app.include_router(admin_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
 
 # Legacy endpoint redirects for backward compatibility

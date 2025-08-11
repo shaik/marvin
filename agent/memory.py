@@ -784,3 +784,47 @@ def get_most_recent_memory_by_text(text: str) -> Optional[Dict[str, Any]]:
     except sqlite3.Error as e:
         logger.error("database_error_get_memory_by_text", text_length=len(text), error=str(e))
         raise DatabaseError(f"Failed to retrieve memory by text: {e}")
+
+
+def list_memories() -> List[Dict[str, Any]]:
+    """Retrieve all memories from the database.
+    
+    Returns:
+        List of dictionaries containing memory details
+        Each dict contains: {"id": str, "text": str, "timestamp": str, "language": str, "location": Optional[str]}
+        
+    Raises:
+        DatabaseError: If database operation fails
+    """
+    try:
+        with sqlite3.connect(settings.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, text, timestamp, language, location
+                FROM memories 
+                ORDER BY timestamp DESC
+            """)
+            
+            rows = cursor.fetchall()
+            memories = []
+            
+            for row in rows:
+                memory_data = {
+                    "id": row[0],
+                    "text": row[1],
+                    "timestamp": row[2],
+                    "language": row[3],
+                    "location": row[4]
+                }
+                memories.append(memory_data)
+            
+            logger.info(
+                "memories_listed",
+                total_count=len(memories)
+            )
+            
+            return memories
+            
+    except sqlite3.Error as e:
+        logger.error("database_error_list_memories", error=str(e))
+        raise DatabaseError(f"Failed to list memories: {e}")
