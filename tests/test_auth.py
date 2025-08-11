@@ -22,11 +22,11 @@ class TestAPIKeyAuthentication:
         """Create a TestClient with API key authentication enabled."""
         # Create mock settings with API auth enabled
         from agent.config import Settings
-        mock_settings = Settings()
-        mock_settings.db_path = test_db
-        mock_settings.openai_api_key = "sk-test-key-for-testing-only"
-        # Add API_AUTH_KEY setting (to be implemented in config)
-        mock_settings.api_auth_key = "test-secret"
+        mock_settings = Settings(
+            openai_api_key="sk-test-key-for-testing-only",
+            db_path=test_db,
+            api_auth_key="test-secret"
+        )
 
         # Mock OpenAI client
         mock_openai_client = MagicMock()
@@ -59,11 +59,11 @@ class TestAPIKeyAuthentication:
         """Create a TestClient with API key authentication disabled."""
         # Create mock settings with API auth disabled (None/unset)
         from agent.config import Settings
-        mock_settings = Settings()
-        mock_settings.db_path = test_db
-        mock_settings.openai_api_key = "sk-test-key-for-testing-only"
-        # API_AUTH_KEY is None/unset = auth disabled
-        mock_settings.api_auth_key = None
+        mock_settings = Settings(
+            openai_api_key="sk-test-key-for-testing-only",
+            db_path=test_db,
+            api_auth_key=None
+        )
 
         # Mock OpenAI client
         mock_openai_client = MagicMock()

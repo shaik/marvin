@@ -22,9 +22,10 @@ class TestUpdateFlow:
         """Create a TestClient with isolated database and mocked dependencies."""
         # Create mock settings
         from agent.config import Settings
-        mock_settings = Settings()
-        mock_settings.db_path = test_db
-        mock_settings.openai_api_key = "sk-test-key-for-testing-only"
+        mock_settings = Settings(
+            openai_api_key="sk-test-key-for-testing-only",
+            db_path=test_db
+        )
 
         # Mock OpenAI client
         mock_openai_client = MagicMock()
