@@ -828,3 +828,63 @@ def list_memories() -> List[Dict[str, Any]]:
     except sqlite3.Error as e:
         logger.error("database_error_list_memories", error=str(e))
         raise DatabaseError(f"Failed to list memories: {e}")
+
+
+def list_memories_page(limit: int, offset: int) -> Tuple[List[Dict[str, Any]], int]:
+    """Retrieve a page of memories from the database with pagination.
+    
+    Args:
+        limit: Maximum number of items to return (1-100)
+        offset: Number of items to skip (>= 0)
+    
+    Returns:
+        Tuple of (items, total_count):
+        - items: List of dictionaries containing memory details
+        - total_count: Total number of memories in database
+        Each item dict contains: {"id": str, "text": str, "timestamp": str, "language": str, "location": Optional[str]}
+        
+    Raises:
+        DatabaseError: If database operation fails
+    """
+    try:
+        with sqlite3.connect(settings.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Query 1: Get total count
+            cursor.execute("SELECT COUNT(*) FROM memories")
+            total_count = cursor.fetchone()[0]
+            
+            # Query 2: Get page of memories with LIMIT and OFFSET
+            cursor.execute("""
+                SELECT id, text, timestamp, language, location
+                FROM memories 
+                ORDER BY timestamp DESC
+                LIMIT ? OFFSET ?
+            """, (limit, offset))
+            
+            rows = cursor.fetchall()
+            memories = []
+            
+            for row in rows:
+                memory_data = {
+                    "id": row[0],
+                    "text": row[1],
+                    "timestamp": row[2],
+                    "language": row[3],
+                    "location": row[4]
+                }
+                memories.append(memory_data)
+            
+            logger.info(
+                "memories_paged_listed",
+                limit=limit,
+                offset=offset,
+                page_count=len(memories),
+                total_count=total_count
+            )
+            
+            return memories, total_count
+            
+    except sqlite3.Error as e:
+        logger.error("database_error_list_memories_page", limit=limit, offset=offset, error=str(e))
+        raise DatabaseError(f"Failed to list memories page: {e}")

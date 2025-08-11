@@ -2,11 +2,11 @@
 Read-only endpoint router for memory retrieval operations.
 """
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query
 from typing import List, Dict, Any
 import logging
 
-from ..memory import list_memories, get_memory_by_id
+from ..memory import list_memories, list_memories_page, get_memory_by_id
 from ..config import Settings, settings
 from .exceptions import MemoryServiceError, DatabaseError
 import sqlite3
@@ -31,31 +31,42 @@ def get_settings() -> Settings:
 @router.get(
     "/memories",
     status_code=status.HTTP_200_OK,
-    summary="List all memories",
+    summary="List memories with pagination",
     description="""
-    Retrieve all stored memories with basic information.
+    Retrieve stored memories with pagination support.
     
-    Returns a list of all memories in the database with their ID and text content.
+    Returns a page of memories from the database with their ID and text content.
     Results are ordered by timestamp (newest first).
+    
+    Query parameters:
+    - limit: Number of items per page (1-100, default 20)
+    - offset: Number of items to skip (>=0, default 0)
     """,
     responses={
-        200: {"description": "List of memories retrieved successfully"},
+        200: {"description": "Page of memories retrieved successfully"},
+        422: {"description": "Invalid pagination parameters"},
     }
 )
 async def list_memories_endpoint(
+    limit: int = Query(20, ge=1, le=100, description="Page size (1..100)"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     app_settings: Settings = Depends(get_settings)
 ) -> Dict[str, Any]:
-    """List all stored memories."""
+    """List stored memories with pagination."""
     
-    logger.info("list_memories_request_received")
+    logger.info(
+        "list_memories_request_received",
+        limit=limit,
+        offset=offset
+    )
     
     try:
-        # Get all memories from database
-        memories = list_memories()
+        # Get page of memories from database
+        items, total = list_memories_page(limit=limit, offset=offset)
         
         # Transform to response format (map id -> memory_id, keep text only)
         response_memories = []
-        for memory in memories:
+        for memory in items:
             response_memory = {
                 "memory_id": memory["id"],
                 "text": memory["text"]
@@ -64,11 +75,14 @@ async def list_memories_endpoint(
         
         logger.info(
             "list_memories_completed",
-            total_memories=len(response_memories)
+            limit=limit,
+            offset=offset,
+            returned_count=len(response_memories),
+            total=total
         )
         
         return {
-            "total_memories": len(response_memories),
+            "total_memories": total,
             "memories": response_memories
         }
         
