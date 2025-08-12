@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 agent/marvin_memory.db
 .env
+app/.env
 sources.txt
