@@ -92,6 +92,19 @@ class Settings(BaseSettings):
         description="Minimum number of candidates required to trigger clarification"
     )
     
+    # Rate Limiting Configuration
+    rate_limit_max_requests: int = Field(
+        default=10,
+        env="RATE_LIMIT_MAX_REQUESTS",
+        description="Maximum number of requests per API key per time window"
+    )
+    
+    rate_limit_window_seconds: int = Field(
+        default=60,
+        env="RATE_LIMIT_WINDOW_SECONDS",
+        description="Time window in seconds for rate limiting"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -26,24 +26,27 @@ def api_key_guard(x_api_key: Union[str, None] = Header(default=None)) -> None:
         
     Behavior:
         - If settings.api_auth_key is None/empty: authentication is disabled, always pass
-        - If settings.api_auth_key is set: require matching X-API-KEY header
+        - If settings.api_auth_key is set: supports comma-separated keys, require matching X-API-KEY header
         - If header is missing or doesn't match: raise 401 error with structured logging
     """
     # Check if authentication is enabled
-    configured_key = settings.api_auth_key
+    raw = settings.api_auth_key
     
     # If no API key is configured, authentication is disabled
-    if not configured_key:
+    if not raw:
         return None
     
+    # Build set of allowed keys from comma-separated string
+    allowed = {k.strip() for k in raw.split(",") if k.strip()}
+    
     # Authentication is enabled, check the provided key
-    if not x_api_key or x_api_key != configured_key:
+    if not x_api_key or x_api_key not in allowed:
         # Log authentication failure
         logger.warning(
             "API key authentication failed",
             extra={
                 "provided_key_present": bool(x_api_key),
-                "configured_key_present": bool(configured_key)
+                "configured_key_present": bool(raw)
             }
         )
         

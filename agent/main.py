@@ -17,6 +17,7 @@ import os
 from .config import settings
 from .memory import init_db
 from .security import api_key_guard
+from .ratelimit import rate_limit_guard
 
 # Import API routers
 from .api.store import router as store_router
@@ -156,15 +157,15 @@ async def health_check() -> HealthResponse:
         logger.error("Health check failed", extra={"error": str(e)})
         raise MemoryServiceError("Service health check failed", status_code=503)
 
-# Include all API routers with authentication
-app.include_router(store_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
-app.include_router(query_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
-app.include_router(update_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
-app.include_router(delete_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
-app.include_router(cancel_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
-app.include_router(clarify_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
-app.include_router(readonly_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
-app.include_router(admin_router, prefix="/api/v1", dependencies=[Depends(api_key_guard)])
+# Include all API routers with authentication and rate limiting
+app.include_router(store_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(query_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(update_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(delete_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(cancel_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(clarify_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(readonly_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(admin_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
 
 # Legacy endpoint redirects for backward compatibility
 @app.post("/store")
