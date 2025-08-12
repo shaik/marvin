@@ -18,6 +18,7 @@ from .config import settings
 from .memory import init_db
 from .security import api_key_guard
 from .ratelimit import rate_limit_guard
+from .metrics import register_http_metrics
 
 # Import API routers
 from .api.store import router as store_router
@@ -28,6 +29,7 @@ from .api.cancel import router as cancel_router
 from .api.clarify import router as clarify_router
 from .api.readonly import router as readonly_router
 from .api.admin import router as admin_router
+from .api.metrics import router as metrics_router
 
 # Import exception handlers
 from .api.exceptions import (
@@ -121,6 +123,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register HTTP metrics middleware
+register_http_metrics(app)
+
 # Add exception handlers
 app.add_exception_handler(MemoryServiceError, memory_service_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -166,6 +171,9 @@ app.include_router(cancel_router, prefix="/api/v1", dependencies=[Depends(api_ke
 app.include_router(clarify_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
 app.include_router(readonly_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
 app.include_router(admin_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+
+# Include metrics router with authentication (no prefix - serves at /metrics)
+app.include_router(metrics_router, dependencies=[Depends(api_key_guard)])
 
 # Legacy endpoint redirects for backward compatibility
 @app.post("/store")

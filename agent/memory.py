@@ -888,3 +888,26 @@ def list_memories_page(limit: int, offset: int) -> Tuple[List[Dict[str, Any]], i
     except sqlite3.Error as e:
         logger.error("database_error_list_memories_page", limit=limit, offset=offset, error=str(e))
         raise DatabaseError(f"Failed to list memories page: {e}")
+
+
+def count_memories() -> int:
+    """
+    Return total number of memories in the DB.
+    """
+    try:
+        with sqlite3.connect(settings.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM memories")
+            row = cursor.fetchone()
+            total = int(row[0] or 0)
+            
+            logger.info(
+                "memories_counted",
+                total_count=total
+            )
+            
+            return total
+            
+    except sqlite3.Error as e:
+        logger.error("database_error_count_memories", error=str(e))
+        raise DatabaseError(f"Failed to count memories: {e}")
