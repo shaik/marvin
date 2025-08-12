@@ -3,8 +3,10 @@ Read-only endpoint router for memory retrieval operations.
 """
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query
+from starlette.responses import Response
 from typing import List, Dict, Any
 import logging
+import json
 
 from ..memory import list_memories, list_memories_page, get_memory_by_id
 from ..config import Settings, settings
@@ -195,3 +197,67 @@ async def export_memories_endpoint(
     except Exception as e:
         logger.error("Unexpected error during export memories", extra={"error": str(e)}, exc_info=True)
         raise MemoryServiceError("Failed to export memories", status_code=500)
+
+
+@router.get(
+    "/export/download",
+    status_code=status.HTTP_200_OK,
+    summary="Download memory export as JSON file",
+    description="""
+    Download complete memory export as a JSON file for backup or analysis.
+    
+    Returns all memories with complete metadata as a downloadable JSON file.
+    The file will be automatically downloaded by browsers with the filename 'marvin_export.json'.
+    
+    Query parameters:
+    - pretty: Enable pretty-printing for readable JSON format (default: false)
+    """,
+    responses={
+        200: {"description": "Memory export file downloaded successfully"},
+    }
+)
+async def export_download_endpoint(
+    pretty: bool = Query(False, description="Pretty-print JSON output"),
+    app_settings: Settings = Depends(get_settings)
+) -> Response:
+    """Download complete memory export as JSON file."""
+    
+    logger.info("export_download_request_received", pretty=pretty)
+    
+    try:
+        # Get all memories from database
+        memories = list_memories()
+        
+        # Build list of dicts with required fields
+        items = []
+        for memory in memories:
+            item = {
+                "id": memory["id"],
+                "text": memory["text"],
+                "timestamp": memory["timestamp"],
+                "language": memory["language"],
+                "location": memory["location"]
+            }
+            items.append(item)
+        
+        # Serialize to JSON with appropriate formatting
+        if pretty:
+            json_content = json.dumps(items, indent=2, ensure_ascii=False)
+        else:
+            json_content = json.dumps(items, separators=(",", ":"), ensure_ascii=False)
+        
+        logger.info("export_download_completed", item_count=len(items))
+        
+        # Return response with download headers
+        return Response(
+            content=json_content,
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=marvin_export.json"}
+        )
+        
+    except sqlite3.Error as e:
+        logger.error("Database error during export download", extra={"error": str(e)})
+        raise DatabaseError(e)
+    except Exception as e:
+        logger.error("Unexpected error during export download", extra={"error": str(e)}, exc_info=True)
+        raise MemoryServiceError("Failed to download export", status_code=500)
