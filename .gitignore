@@ -5,3 +5,34 @@ agent/marvin_memory.db
 .env
 app/.env
 sources.txt
+ 
+# Python
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+*.log
+
+# macOS
+.DS_Store
+
+# Node / Expo client
+app/node_modules/
+app/.expo/
+app/.expo-shared/
+app/.expo/web-build/
+app/dist/
+app/build/
+app/.cache/
+app/npm-debug.log*
+app/yarn-debug.log*
+app/yarn-error.log*
+app/pnpm-debug.log*
+app/*.bak.*
+
+# Env variants
+.env.*
+app/.env.*
