@@ -9,7 +9,7 @@ export default {
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
     splash: {
-      image: "./assets/splash.png",
+      image: undefined,
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
@@ -21,12 +21,12 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: undefined,
         backgroundColor: "#ffffff"
       }
     },
     web: {
-      favicon: "./assets/favicon.png"
+      favicon: undefined
     },
     extra: {
       HEROKU_URL: process.env.HEROKU_URL || "",
