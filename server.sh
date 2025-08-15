@@ -9,4 +9,4 @@ fi
 
 # Activate venv and start the server
 source venv/bin/activate
-exec uvicorn agent.main:app --host 0.0.0.0 --port "${PORT:-8000}" --reload --reload-dir agent
+exec uvicorn agent.main:app --host 0.0.0.0 --port "${PORT:-8000}" --reload

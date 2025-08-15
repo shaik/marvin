@@ -3,7 +3,7 @@ Pydantic models for request and response schemas.
 """
 
 from pydantic import BaseModel, Field, constr
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Literal
 
 
 # Request Models
@@ -40,6 +40,15 @@ class ClarifyRequest(BaseModel):
     """Request model for clarification resolution."""
     query: str = Field(..., description="Original query that needed clarification", min_length=1)
     chosen_memory_id: str = Field(..., description="UUID of the chosen memory from clarification candidates")
+
+
+class AutoRequest(BaseModel):
+    """Request model for LLM-powered auto store/retrieve endpoint."""
+    text: str = Field(..., description="User input text for automatic processing", min_length=1)
+    force_action: Optional[Literal["store", "retrieve"]] = Field(
+        default=None, 
+        description="Force a specific action even if LLM would choose clarify"
+    )
 
 
 # Response Models
@@ -106,6 +115,13 @@ class MemoriesResponse(BaseModel):
     """Response model for getting all memories."""
     total_memories: int = Field(..., description="Total number of stored memories")
     memories: List[MemoryCandidate] = Field(..., description="All stored memories")
+
+
+class AutoResponse(BaseModel):
+    """Response model for LLM auto endpoint."""
+    action: Literal["store", "retrieve", "clarify"] = Field(..., description="Action taken by the system")
+    decision: Dict[str, Any] = Field(..., description="LLM decision details including confidence, reason, etc.")
+    result: Optional[Dict[str, Any]] = Field(default=None, description="Result of the action (store/retrieve result or None for clarify)")
 
 
 class ErrorResponse(BaseModel):

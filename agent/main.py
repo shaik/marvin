@@ -29,6 +29,7 @@ from .api.cancel import router as cancel_router
 from .api.clarify import router as clarify_router
 from .api.readonly import router as readonly_router
 from .api.admin import router as admin_router
+from .api.auto import router as auto_router
 from .api.metrics import router as metrics_router
 
 # Import exception handlers
@@ -171,6 +172,7 @@ app.include_router(cancel_router, prefix="/api/v1", dependencies=[Depends(api_ke
 app.include_router(clarify_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
 app.include_router(readonly_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
 app.include_router(admin_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
+app.include_router(auto_router, prefix="/api/v1", dependencies=[Depends(api_key_guard), Depends(rate_limit_guard)])
 
 # Include metrics router with authentication (no prefix - serves at /metrics)
 app.include_router(metrics_router, dependencies=[Depends(api_key_guard)])

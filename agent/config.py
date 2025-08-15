@@ -105,6 +105,19 @@ class Settings(BaseSettings):
         description="Time window in seconds for rate limiting"
     )
     
+    # LLM Auto Decision Configuration
+    llm_decider_model: str = Field(
+        default="gpt-4o-mini",
+        env="LLM_DECIDER_MODEL",
+        description="OpenAI model used for auto store/retrieve decisions"
+    )
+    
+    llm_decider_confidence_min: float = Field(
+        default=0.70,
+        env="LLM_DECIDER_CONFIDENCE_MIN",
+        description="Minimum confidence threshold for LLM decisions (below triggers clarification)"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
