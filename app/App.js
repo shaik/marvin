@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { getConfig, storeMemory, queryMemory } from './api';
+import AutoScreen from './screens/AutoScreen';
 
 export default function App() {
   const [memoryText, setMemoryText] = useState('');
@@ -117,88 +118,22 @@ export default function App() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Marvin Memory Assistant</Text>
-            
-            {/* Configuration Status */}
             <View style={styles.configStatus}>
               {configError ? (
                 <Text style={styles.configError}>⚠️ {configError}</Text>
               ) : (
                 <View>
-                  <Text style={styles.configText}>
-                    📡 Server: {config?.baseUrl || 'Not set'}
-                  </Text>
-                  <Text style={styles.configText}>
-                    🔑 API Key: {config?.apiKey ? `Set (${config.apiKey.length} chars)` : 'Not set'}
-                  </Text>
+                  <Text style={styles.configText}>📡 Server: {config?.baseUrl || 'Not set'}</Text>
+                  <Text style={styles.configText}>🔑 API Key: {config?.apiKey ? `Set (${config.apiKey.length} chars)` : 'Not set'}</Text>
                 </View>
               )}
             </View>
           </View>
 
-          {/* Store Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>💾 Store Memory</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter memory text..."
-              value={memoryText}
-              onChangeText={setMemoryText}
-              multiline
-              numberOfLines={3}
-              editable={!loading && !configError}
-            />
-            <TouchableOpacity
-              style={[styles.button, (loading || configError) && styles.buttonDisabled]}
-              onPress={handleStore}
-              disabled={loading || configError}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? 'Storing...' : 'Store'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Query Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🔍 Query Memories</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter search query..."
-              value={queryText}
-              onChangeText={setQueryText}
-              editable={!loading && !configError}
-            />
-            <TouchableOpacity
-              style={[styles.button, (loading || configError) && styles.buttonDisabled]}
-              onPress={handleQuery}
-              disabled={loading || configError}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? 'Searching...' : 'Query'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Results Section */}
-          {result && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 Last Result</Text>
-              <View style={styles.resultHeader}>
-                <Text style={styles.resultAction}>{result.action}</Text>
-                <Text style={[styles.resultStatus, { color: getStatusColor(result.status, result.ok) }]}>
-                  {result.status} {result.ok ? '✅' : '❌'}
-                </Text>
-              </View>
-              <ScrollView style={styles.resultContainer} horizontal>
-                <Text style={styles.resultText}>
-                  {formatJson(result.data)}
-                </Text>
-              </ScrollView>
-            </View>
-          )}
+          {/* Replace home with Auto flow */}
+          <AutoScreen />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

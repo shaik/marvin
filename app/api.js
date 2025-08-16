@@ -112,3 +112,22 @@ export async function queryMemory(query) {
     query: query.trim()
   });
 }
+
+/**
+ * Auto-decide action (store/retrieve/clarify) via backend LLM.
+ * @param {string} text - User input text
+ * @param {{ force?: 'store' | 'retrieve' }} [opts] - Optional override to force action
+ * @returns {Promise<{ ok: boolean, status: number, json: any }>}
+ */
+export async function auto(text, opts = {}) {
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    throw new Error("Text is required and must be a non-empty string");
+  }
+
+  const body = { text: text.trim() };
+  if (opts.force === 'store' || opts.force === 'retrieve') {
+    body.force_action = opts.force;
+  }
+
+  return makeApiRequest('/api/v1/auto', body);
+}

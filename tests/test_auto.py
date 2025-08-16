@@ -18,15 +18,6 @@ class TestAutoEndpoint:
         v = [0.0] * dim
         v[idx] = 1.0
         return v
-    
-    def update_llm_mock_response(self, response_data: dict):
-        """Update the LLM mock to return specific response data."""
-        # Import the OpenAI client that was mocked in fixtures
-        from agent.memory import client
-        mock_chat_response = MagicMock()
-        mock_chat_response.choices = [MagicMock()]
-        mock_chat_response.choices[0].message.content = json.dumps(response_data)
-        client.chat.completions.create.return_value = mock_chat_response
 
     @pytest.fixture
     def test_db(self):
@@ -56,12 +47,6 @@ class TestAutoEndpoint:
         mock_embedding_response.data = [MagicMock()]
         mock_embedding_response.data[0].embedding = [0.1] * 1536
         mock_openai_client.embeddings.create.return_value = mock_embedding_response
-        
-        # Mock chat completion (default response for LLM decisions)
-        mock_chat_response = MagicMock()
-        mock_chat_response.choices = [MagicMock()]
-        mock_chat_response.choices[0].message.content = '{"action": "store", "confidence": 0.9, "language": "en", "reason": "Default test response"}'
-        mock_openai_client.chat.completions.create.return_value = mock_chat_response
 
         # Clear module cache to force re-import with mocks
         modules_to_clear = [key for key in sys.modules.keys() if key.startswith('agent')]
@@ -103,12 +88,6 @@ class TestAutoEndpoint:
         mock_embedding_response.data = [MagicMock()]
         mock_embedding_response.data[0].embedding = [0.1] * 1536
         mock_openai_client.embeddings.create.return_value = mock_embedding_response
-        
-        # Mock chat completion (default response for LLM decisions)
-        mock_chat_response = MagicMock()
-        mock_chat_response.choices = [MagicMock()]
-        mock_chat_response.choices[0].message.content = '{"action": "store", "confidence": 0.9, "language": "en", "reason": "Default test response"}'
-        mock_openai_client.chat.completions.create.return_value = mock_chat_response
 
         # Clear module cache to force re-import with mocks
         modules_to_clear = [key for key in sys.modules.keys() if key.startswith('agent')]
@@ -163,10 +142,22 @@ class TestAutoEndpoint:
         )
         assert response.status_code in [200, 201]  # Should work
 
-    def test_action_store_when_llm_decides_store(self, client_with_auth):
+    @patch('openai.OpenAI')
+    def test_action_store_when_llm_decides_store(self, mock_openai_class, client_with_auth):
         """Test store action when LLM decides to store."""
-        # The default mock in fixtures already returns a store action with confidence 0.9
-        # This test will use that default behavior
+        # Mock LLM chat completion to return store decision
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
+            "action": "store",
+            "normalized_text": "I bought milk from the grocery store today",
+            "language": "en",
+            "confidence": 0.9,
+            "reason": "User wants to record a new memory about purchasing milk"
+        })
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         # Get initial memory count
         memories_response = client_with_auth.get(
@@ -199,7 +190,8 @@ class TestAutoEndpoint:
         new_count = memories_response.json()["total_memories"]
         assert new_count == initial_count + 1
 
-    def test_action_retrieve_when_llm_decides_retrieve(self, client_with_auth):
+    @patch('openai.OpenAI')
+    def test_action_retrieve_when_llm_decides_retrieve(self, mock_openai_class, client_with_auth):
         """Test retrieve action when LLM decides to retrieve."""
         # First store a memory to retrieve
         client_with_auth.post(
@@ -208,13 +200,19 @@ class TestAutoEndpoint:
             headers={"X-API-KEY": "test-secret"}
         )
 
-        # Update mock to return retrieve decision
-        self.update_llm_mock_response({
+        # Mock LLM chat completion to return retrieve decision
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
             "action": "retrieve",
+            "normalized_text": "when did I buy milk",
+            "language": "en",
             "confidence": 0.85,
-            "language": "en", 
             "reason": "User is asking about a past memory regarding milk purchase"
         })
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         # Make auto request
         response = client_with_auth.post(
@@ -231,15 +229,22 @@ class TestAutoEndpoint:
         assert "result" in data
         assert "candidates" in data["result"]
 
-    def test_action_clarify_on_low_confidence(self, client_with_auth):
+    @patch('openai.OpenAI')
+    def test_action_clarify_on_low_confidence(self, mock_openai_class, client_with_auth):
         """Test clarify action when LLM returns low confidence."""
-        # Update mock to return low confidence (below threshold)
-        self.update_llm_mock_response({
+        # Mock LLM chat completion to return low confidence
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
             "action": "store",
-            "confidence": 0.5,  # Below threshold of 0.70
+            "normalized_text": "something unclear",
             "language": "en",
+            "confidence": 0.5,  # Below threshold
             "reason": "Ambiguous user intent"
         })
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         # Get initial memory count
         memories_response = client_with_auth.get(
@@ -273,14 +278,16 @@ class TestAutoEndpoint:
         new_count = memories_response.json()["total_memories"]
         assert new_count == initial_count
 
-    def test_action_clarify_on_invalid_json(self, client_with_auth):
-        """Test clarify action when LLM returns invalid JSON.""" 
-        # Update mock to return invalid JSON
-        from agent.memory import client
+    @patch('openai.OpenAI')
+    def test_action_clarify_on_invalid_json(self, mock_openai_class, client_with_auth):
+        """Test clarify action when LLM returns invalid JSON."""
+        # Mock LLM chat completion to return invalid JSON
         mock_chat_response = MagicMock()
         mock_chat_response.choices = [MagicMock()]
         mock_chat_response.choices[0].message.content = "This is not valid JSON at all"
-        client.chat.completions.create.return_value = mock_chat_response
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         # Get initial memory count
         memories_response = client_with_auth.get(
@@ -395,15 +402,22 @@ class TestAutoEndpoint:
         assert "result" in data
         assert "candidates" in data["result"]
 
-    def test_hebrew_store_example(self, client_with_auth):
+    @patch('openai.OpenAI')
+    def test_hebrew_store_example(self, mock_openai_class, client_with_auth):
         """Test Hebrew utterance that should become store action."""
-        # Update mock to decide store for Hebrew input
-        self.update_llm_mock_response({
+        # Mock LLM to decide store for Hebrew input
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
             "action": "store",
-            "language": "he", 
+            "normalized_text": "קניתי חלב בסופרמרקט היום",
+            "language": "he",
             "confidence": 0.9,
             "reason": "User wants to record a memory about buying milk"
         })
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         # Make auto request with Hebrew text
         response = client_with_auth.post(
@@ -418,7 +432,8 @@ class TestAutoEndpoint:
         assert data["action"] == "store"
         assert data["decision"]["language"] == "he"
 
-    def test_hebrew_retrieve_example(self, client_with_auth):
+    @patch('openai.OpenAI')
+    def test_hebrew_retrieve_example(self, mock_openai_class, client_with_auth):
         """Test Hebrew utterance that should become retrieve action."""
         # First store a Hebrew memory
         client_with_auth.post(
@@ -427,13 +442,19 @@ class TestAutoEndpoint:
             headers={"X-API-KEY": "test-secret"}
         )
 
-        # Update mock to decide retrieve for Hebrew query
-        self.update_llm_mock_response({
+        # Mock LLM to decide retrieve for Hebrew query
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
             "action": "retrieve",
+            "normalized_text": "מתי קניתי חלב",
             "language": "he",
             "confidence": 0.85,
             "reason": "User is asking about a past memory"
         })
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         # Make auto request with Hebrew query
         response = client_with_auth.post(
@@ -448,9 +469,22 @@ class TestAutoEndpoint:
         assert data["action"] == "retrieve"
         assert data["decision"]["language"] == "he"
 
-    def test_rate_limit_behavior(self, client_with_auth):
+    @patch('openai.OpenAI')
+    def test_rate_limit_behavior(self, mock_openai_class, client_with_auth):
         """Test that auto endpoint follows rate limit rules (10/60s)."""
-        # Use default mock response (store action with confidence 0.9) for rate limit test
+        # Mock LLM to always return valid response
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
+            "action": "store",
+            "normalized_text": "test memory",
+            "language": "en",
+            "confidence": 0.9,
+            "reason": "Test"
+        })
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         headers = {"X-API-KEY": "test-secret"}
         
@@ -472,9 +506,22 @@ class TestAutoEndpoint:
         assert response.status_code == 429
         assert "detail" in response.json() or "error" in response.json()
 
-    def test_logging_smoke_test(self, client_with_auth, caplog):
+    @patch('openai.OpenAI')
+    def test_logging_smoke_test(self, mock_openai_class, client_with_auth, caplog):
         """Test that auto endpoint logs structured auto_decision event."""
-        # Use default mock response (store action with confidence 0.9) for logging test
+        # Mock LLM response
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
+            "action": "store",
+            "normalized_text": "test memory for logging",
+            "language": "en",
+            "confidence": 0.8,
+            "reason": "Test logging"
+        })
+        
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
 
         # Capture logs
         with caplog.at_level(logging.INFO):
@@ -491,7 +538,7 @@ class TestAutoEndpoint:
         log_records = [record for record in caplog.records if hasattr(record, 'getMessage')]
         auto_decision_logs = [
             record for record in log_records 
-            if 'auto_decision' in record.getMessage() or 'LLM auto decision' in record.getMessage()
+            if 'auto_decision' in record.getMessage()
         ]
         
         # Should have at least one auto_decision log
