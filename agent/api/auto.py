@@ -4,9 +4,14 @@ Auto endpoint router for LLM-powered store/retrieve decisions.
 
 import logging
 from fastapi import APIRouter, status, Depends
+from fastapi.responses import JSONResponse
 from agent.config import settings
 from agent.api.models import AutoRequest, AutoResponse
 from agent.api.exceptions import InvalidInputError, MemoryServiceError
+import openai
+import json
+from agent.memory import store_memory, query_memory
+from agent.utils.time import utc_now_iso_z
 
 
 # Configure logger
@@ -58,8 +63,6 @@ async def auto_endpoint(
 ) -> AutoResponse:
     """
     LLM-powered auto endpoint that decides between store/retrieve actions.
-    
-    This is a STUB implementation that always returns clarify until Step 3.
     """
     
     # Input validation
@@ -78,36 +81,109 @@ async def auto_endpoint(
     )
     
     try:
-        # STUB: Always return clarify for now
-        # In Step 3, this will be replaced with actual LLM logic
-        
+        # Build simple LLM prompt for decisioning
+        client = openai.OpenAI(api_key=app_settings.openai_api_key)
+
+        system_prompt = (
+            "You classify a user's input as either 'store' or 'retrieve'. "
+            "Always respond with strict JSON like: {\n"
+            "  \"action\": \"store|retrieve\",\n"
+            "  \"normalized_text\": \"...\",\n"
+            "  \"language\": \"he|en|...\",\n"
+            "  \"confidence\": 0.0-1.0,\n"
+            "  \"reason\": \"...\"\n}"
+        )
+
+        user_prompt = request.text.strip()
+
+        chat = client.chat.completions.create(
+            model=app_settings.llm_decider_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0
+        )
+
+        # Parse LLM response JSON
+        parsed: dict
+        try:
+            content = chat.choices[0].message.content if chat and chat.choices else "{}"
+            parsed = json.loads(content or "{}")
+        except Exception as parse_err:
+            logger.debug("auto_decision_parse_error", extra={"error": str(parse_err)})
+            parsed = {}
+
+        action = str(parsed.get("action", "")).strip().lower()
+        normalized_text = str(parsed.get("normalized_text") or user_prompt)
+        language = str(parsed.get("language") or "he")
+        try:
+            confidence = float(parsed.get("confidence", 0.0) or 0.0)
+        except Exception:
+            confidence = 0.0
+        reason = str(parsed.get("reason") or "")
+
+        # Apply threshold / force overrides
+        chosen_action = action if action in {"store", "retrieve"} else "clarify"
+        if request.force_action in {"store", "retrieve"}:
+            chosen_action = request.force_action
+        elif confidence < app_settings.llm_decider_confidence_min:
+            chosen_action = "clarify"
+
         decision = {
-            "normalized_text": request.text.strip(),
-            "language": "en",  # Default assumption for stub
-            "confidence": 0.0,  # Low confidence to trigger clarify
-            "reason": "STUB: Implementation not complete - always triggers clarification",
-            "clarify_prompt": f"I need clarification about your request: '{request.text.strip()}'. What would you like me to do?",
-            "clarify_options": ["store", "retrieve"]
+            "action": chosen_action if chosen_action != "clarify" else (action or "clarify"),
+            "normalized_text": normalized_text,
+            "language": language,
+            "confidence": confidence,
+            "reason": reason,
         }
-        
-        # Log the stubbed decision
+
+        # If clarify, include clarify prompt/options
+        if chosen_action == "clarify":
+            decision.update({
+                "clarify_prompt": f"I need clarification about your request: '{normalized_text}'. What would you like me to do?",
+                "clarify_options": ["store", "retrieve"],
+            })
+
+        # Log the decision (message contains the token for test visibility)
         logger.info(
-            "Auto decision completed (STUB)",
+            "auto_decision",
             extra={
-                "event": "auto_decision",
-                "action": "clarify",
-                "confidence": 0.0,
-                "language": "en",
-                "reason": "stub_implementation"
+                "action": chosen_action,
+                "confidence": confidence,
+                "language": language,
+                "raw_action": action,
             }
         )
-        
-        # Return clarify response (HTTP 200)
-        return AutoResponse(
-            action="clarify",
-            decision=decision,
-            result=None
-        )
+
+        # Execute action when not clarifying
+        if chosen_action == "store":
+            metadata = {
+                "timestamp": utc_now_iso_z(),
+                "language": language,
+                "location": None,
+            }
+            store_result = store_memory(normalized_text, metadata)
+            response = AutoResponse(
+                action="store",
+                decision=decision,
+                result=store_result,
+            )
+            # 201 for created; 409 for duplicate
+            status_code = status.HTTP_201_CREATED if not store_result.get("duplicate_detected") else status.HTTP_409_CONFLICT
+            return JSONResponse(status_code=status_code, content=response.model_dump())
+
+        if chosen_action == "retrieve":
+            candidates = query_memory(normalized_text)
+            response = AutoResponse(
+                action="retrieve",
+                decision=decision,
+                result={"candidates": candidates},
+            )
+            return JSONResponse(status_code=status.HTTP_200_OK, content=response.model_dump())
+
+        # Clarify path (default)
+        return JSONResponse(status_code=status.HTTP_200_OK, content=AutoResponse(action="clarify", decision=decision, result=None).model_dump())
         
     except Exception as e:
         logger.error(
@@ -120,3 +196,4 @@ async def auto_endpoint(
             }
         )
         raise MemoryServiceError("Auto decision processing failed", status_code=500)
+
