@@ -152,6 +152,7 @@ async def auto_endpoint(
                 "action": chosen_action,
                 "confidence": confidence,
                 "language": language,
+                "text_preview": normalized_text[:50] + ("..." if len(normalized_text) > 50 else ""),
                 "raw_action": action,
             }
         )
