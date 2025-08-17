@@ -31,6 +31,7 @@ export default function AutoScreen() {
   const clarifyQuestion = useMemo(() => {
     if (!showClarify) return '';
     return (
+      result?.decision?.clarify_prompt ||
       result?.question ||
       result?.message ||
       result?.clarification ||
@@ -130,9 +131,12 @@ export default function AutoScreen() {
         </View>
       )}
 
-      {result?.action === 'retrieve' && Array.isArray(result?.candidates) && (
+      {result?.action === 'retrieve' && (() => {
+        const candidates = (result?.result?.candidates || result?.candidates || []);
+        return Array.isArray(candidates) && candidates.length > 0;
+      })() && (
         <View style={{ marginTop: 16 }}>
-          {result.candidates.map((c, idx) => (
+          {(result?.result?.candidates || result?.candidates || []).map((c, idx) => (
             <Text key={c.id || idx}>{c.text || String(c)}</Text>
           ))}
         </View>
