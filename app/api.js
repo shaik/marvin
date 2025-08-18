@@ -28,7 +28,7 @@ export function getConfig() {
  * @param {Object} body - Request body object
  * @returns {Promise<Object>} { ok, status, json }
  */
-async function makeApiRequest(endpoint, body) {
+async function makeApiRequest(endpoint, body, extraHeaders = {}) {
   const { baseUrl, apiKey } = getConfig();
   
   const headers = {
@@ -39,6 +39,8 @@ async function makeApiRequest(endpoint, body) {
   if (apiKey) {
     headers['X-API-KEY'] = apiKey;
   }
+  // Merge any extra headers
+  Object.assign(headers, extraHeaders || {});
   
   const url = `${baseUrl}${endpoint}`;
   
@@ -128,6 +130,9 @@ export async function auto(text, opts = {}) {
   if (opts.force === 'store' || opts.force === 'retrieve') {
     body.force_action = opts.force;
   }
-
-  return makeApiRequest('/api/v1/auto', body);
+  if (opts.preferredLanguage) {
+    body.preferredLanguage = opts.preferredLanguage;
+  }
+  const extraHeaders = opts.preferredLanguage ? { 'Accept-Language': opts.preferredLanguage } : {};
+  return makeApiRequest('/api/v1/auto', body, extraHeaders);
 }

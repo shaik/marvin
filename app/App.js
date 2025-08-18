@@ -14,6 +14,7 @@ import {
 
 import { getConfig, storeMemory, queryMemory } from './api';
 import AutoScreen from './screens/AutoScreen';
+import ChatScreen from './screens/ChatScreen';
 
 export default function App() {
   const [memoryText, setMemoryText] = useState('');
@@ -132,8 +133,8 @@ export default function App() {
             </View>
           </View>
 
-          {/* Replace home with Auto flow */}
-          <AutoScreen />
+          {/* Replace home with Chat flow (keep AutoScreen exported) */}
+          <ChatScreen />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

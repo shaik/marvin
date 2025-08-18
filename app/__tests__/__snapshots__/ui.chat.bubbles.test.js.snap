@@ -1,0 +1,124 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`MessageBubble styling and RTL renders user and assistant bubbles (snapshot) 1`] = `
+[
+  <View
+    style={
+      [
+        {
+          "marginVertical": 6,
+          "width": "100%",
+        },
+        {
+          "justifyContent": "flex-end",
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 14,
+            "maxWidth": "85%",
+            "paddingHorizontal": 12,
+            "paddingVertical": 8,
+          },
+          {
+            "backgroundColor": "#DCFCE7",
+            "borderTopRightRadius": 4,
+          },
+          {
+            "elevation": 2,
+            "shadowColor": "#000",
+            "shadowOffset": {
+              "height": 1,
+              "width": 0,
+            },
+            "shadowOpacity": 0.05,
+            "shadowRadius": 3,
+          },
+        ]
+      }
+    >
+      <Text
+        style={
+          [
+            {
+              "color": "#111827",
+              "fontSize": 16,
+            },
+            {
+              "textAlign": "left",
+              "writingDirection": "ltr",
+            },
+          ]
+        }
+        testID="bubble-text-ltr"
+      >
+        Hello
+      </Text>
+    </View>
+  </View>,
+  <View
+    style={
+      [
+        {
+          "marginVertical": 6,
+          "width": "100%",
+        },
+        {
+          "justifyContent": "flex-start",
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 14,
+            "maxWidth": "85%",
+            "paddingHorizontal": 12,
+            "paddingVertical": 8,
+          },
+          {
+            "backgroundColor": "#FFFFFF",
+            "borderColor": "#E5E7EB",
+            "borderTopLeftRadius": 4,
+            "borderWidth": 1,
+          },
+          {
+            "elevation": 2,
+            "shadowColor": "#000",
+            "shadowOffset": {
+              "height": 1,
+              "width": 0,
+            },
+            "shadowOpacity": 0.05,
+            "shadowRadius": 3,
+          },
+        ]
+      }
+    >
+      <Text
+        style={
+          [
+            {
+              "color": "#111827",
+              "fontSize": 16,
+            },
+            {
+              "textAlign": "left",
+              "writingDirection": "ltr",
+            },
+          ]
+        }
+        testID="bubble-text-ltr"
+      >
+        Hi there
+      </Text>
+    </View>
+  </View>,
+]
+`;

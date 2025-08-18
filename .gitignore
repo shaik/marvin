@@ -36,3 +36,4 @@ app/*.bak.*
 # Env variants
 .env.*
 app/.env.*
+files.txt

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
-import App from '../App';
+import AutoScreen from '../screens/AutoScreen';
 
 jest.mock('../api', () => {
   const actual = jest.requireActual('../api');
@@ -21,7 +21,7 @@ describe('Clarify UI rendering', () => {
   it('renders clarify card with question and disabled send', async () => {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', question: 'על איזו דליה מדובר?' } });
 
-    const { getByLabelText, getByText } = render(<App />);
+    const { getByLabelText, getByText } = render(<AutoScreen />);
 
     const mainInput = getByLabelText('main-input');
     fireEvent.changeText(mainInput, 'דליה');
@@ -44,7 +44,7 @@ describe('Clarify UI rendering', () => {
   it('disables send when whitespace only', async () => {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', question: 'על איזו דליה מדובר?' } });
 
-    const { getByLabelText } = render(<App />);
+    const { getByLabelText } = render(<AutoScreen />);
     fireEvent.changeText(getByLabelText('main-input'), 'דליה');
     await act(async () => {
       fireEvent.press(getByLabelText('main-send'));
@@ -58,7 +58,7 @@ describe('Clarify UI rendering', () => {
 
   it('falls back when question field name differs (message)', async () => {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', message: 'שאלה שונה' } });
-    const { getByLabelText, getByText } = render(<App />);
+    const { getByLabelText, getByText } = render(<AutoScreen />);
     fireEvent.changeText(getByLabelText('main-input'), 'דליה');
     await act(async () => {
       fireEvent.press(getByLabelText('main-send'));
@@ -68,7 +68,7 @@ describe('Clarify UI rendering', () => {
 
   it('falls back when question field name differs (clarification)', async () => {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', clarification: 'עוד שאלה' } });
-    const { getByLabelText, getByText } = render(<App />);
+    const { getByLabelText, getByText } = render(<AutoScreen />);
     fireEvent.changeText(getByLabelText('main-input'), 'דליה');
     await act(async () => {
       fireEvent.press(getByLabelText('main-send'));

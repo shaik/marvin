@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
-import App from '../App';
+import AutoScreen from '../screens/AutoScreen';
 
 jest.mock('../api', () => {
   const actual = jest.requireActual('../api');
@@ -20,7 +20,7 @@ describe('Clarify follow-up submission', () => {
 
   async function reachClarifyQuestion({ question = 'על איזו דליה מדובר?' } = {}) {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', question } });
-    const utils = render(<App />);
+    const utils = render(<AutoScreen />);
     fireEvent.changeText(utils.getByLabelText('main-input'), 'דליה');
     await act(async () => {
       fireEvent.press(utils.getByLabelText('main-send'));
@@ -136,7 +136,10 @@ describe('Clarify follow-up submission', () => {
     const utils = await reachClarifyQuestion();
     auto.mockResolvedValueOnce({ ok: false, status: 0, json: { error: 'Network error' } });
     fireEvent.changeText(utils.getByLabelText('clarify-input'), 'תשובה');
-    fireEvent.press(utils.getByLabelText('clarify-send'));
+    await act(async () => {
+      fireEvent.press(utils.getByLabelText('clarify-send'));
+      await Promise.resolve();
+    });
 
     await waitFor(() => utils.getByText(/Server error/i));
     expect(utils.getByLabelText('clarify-input')).toBeTruthy();
