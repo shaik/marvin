@@ -22,8 +22,10 @@ describe('Clarify follow-up submission', () => {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', question } });
     const utils = render(<AutoScreen />);
     fireEvent.changeText(utils.getByLabelText('main-input'), 'דליה');
+    await act(async () => { await Promise.resolve(); });
     await act(async () => {
       fireEvent.press(utils.getByLabelText('main-send'));
+      await Promise.resolve();
     });
     await waitFor(() => utils.getByLabelText('clarify-input'));
     return utils;

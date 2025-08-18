@@ -25,9 +25,11 @@ describe('Clarify UI rendering', () => {
 
     const mainInput = getByLabelText('main-input');
     fireEvent.changeText(mainInput, 'דליה');
+    await act(async () => { await Promise.resolve(); });
     const mainSend = getByLabelText('main-send');
     await act(async () => {
       fireEvent.press(mainSend);
+      await Promise.resolve();
     });
 
     await waitFor(() => expect(getByText('על איזו דליה מדובר?')).toBeTruthy());

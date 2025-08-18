@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ChatScreen from '../screens/ChatScreen';
 
 jest.mock('../api', () => {
@@ -18,7 +18,11 @@ describe('ChatScreen /auto flow', () => {
 
   async function typeAndSend(utils, text) {
     fireEvent.changeText(utils.getByLabelText('chat-input'), text);
-    fireEvent.press(utils.getByLabelText('chat-send'));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      fireEvent.press(utils.getByLabelText('chat-send'));
+      await Promise.resolve();
+    });
     await waitFor(() => expect(auto).toHaveBeenCalled());
   }
 
