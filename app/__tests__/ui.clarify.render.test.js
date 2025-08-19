@@ -24,12 +24,13 @@ describe('Clarify UI rendering', () => {
     const { getByLabelText, getByText } = render(<AutoScreen />);
 
     const mainInput = getByLabelText('main-input');
-    fireEvent.changeText(mainInput, 'דליה');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      fireEvent.changeText(mainInput, 'דליה');
+    });
     const mainSend = getByLabelText('main-send');
+    await waitFor(() => expect(mainSend.props.accessibilityState?.disabled || mainSend.props.disabled).toBeFalsy());
     await act(async () => {
       fireEvent.press(mainSend);
-      await Promise.resolve();
     });
 
     await waitFor(() => expect(getByText('על איזו דליה מדובר?')).toBeTruthy());

@@ -21,11 +21,13 @@ describe('Clarify follow-up submission', () => {
   async function reachClarifyQuestion({ question = 'על איזו דליה מדובר?' } = {}) {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', question } });
     const utils = render(<AutoScreen />);
-    fireEvent.changeText(utils.getByLabelText('main-input'), 'דליה');
-    await act(async () => { await Promise.resolve(); });
     await act(async () => {
-      fireEvent.press(utils.getByLabelText('main-send'));
-      await Promise.resolve();
+      fireEvent.changeText(utils.getByLabelText('main-input'), 'דליה');
+    });
+    const mainSend = utils.getByLabelText('main-send');
+    await waitFor(() => expect(mainSend.props.accessibilityState?.disabled || mainSend.props.disabled).toBeFalsy());
+    await act(async () => {
+      fireEvent.press(mainSend);
     });
     await waitFor(() => utils.getByLabelText('clarify-input'));
     return utils;
@@ -58,7 +60,7 @@ describe('Clarify follow-up submission', () => {
     auto.mockResolvedValueOnce({ ok: true, status: 200, json: { action: 'clarify', question: 'שאלה 2' } });
 
     const input = utils.getByLabelText('clarify-input');
-    fireEvent.changeText(input, 'תשובה 1');
+    await act(async () => { fireEvent.changeText(input, 'תשובה 1'); });
     await act(async () => {
       fireEvent.press(utils.getByLabelText('clarify-send'));
     });

@@ -17,12 +17,10 @@ describe('ChatScreen /auto flow', () => {
   beforeEach(() => jest.clearAllMocks());
 
   async function typeAndSend(utils, text) {
-    fireEvent.changeText(utils.getByLabelText('chat-input'), text);
-    await act(async () => { await Promise.resolve(); });
-    await act(async () => {
-      fireEvent.press(utils.getByLabelText('chat-send'));
-      await Promise.resolve();
-    });
+    await act(async () => { fireEvent.changeText(utils.getByLabelText('chat-input'), text); });
+    const send = utils.getByLabelText('chat-send');
+    await waitFor(() => expect(send.props.accessibilityState?.disabled || send.props.disabled).toBeFalsy());
+    await act(async () => { fireEvent.press(send); });
     await waitFor(() => expect(auto).toHaveBeenCalled());
   }
 
