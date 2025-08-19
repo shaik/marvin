@@ -10,13 +10,14 @@ import os
 import sqlite3
 import time
 import uuid
+import re
 from datetime import datetime
-from .utils.time import utc_now_iso_z
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from openai import OpenAI, OpenAIError
 
+from .utils.time import utc_now_iso_z
 from .api.exceptions import DatabaseError
 
 # Configure structured JSON logging
@@ -75,6 +76,12 @@ except Exception as e:
 
 # Database path from settings
 DB_PATH = settings.db_path
+
+# Duplicate detection threshold for cosine similarity
+DUPLICATE_THRESHOLD = 0.92
+
+# Precompiled word pattern for keyword overlap scoring
+WORD_RE = re.compile(r"\w+")
 
 # Embedding cache to reduce OpenAI API calls
 _embedding_cache: Dict[str, List[float]] = {}
@@ -260,8 +267,32 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     # Calculate cosine similarity
     dot_product = np.dot(a_np, b_np)
     similarity = dot_product / (norm_a * norm_b)
-    
+
     return float(similarity)
+
+
+def _keyword_overlap_score(query: str, text: str) -> float:
+    """Calculate normalized keyword overlap between query and text.
+
+    This provides a simple lexical matching signal that boosts results
+    containing exact query terms (like specific colors) which embeddings
+    might treat as semantically similar.
+
+    Args:
+        query: The original query string.
+        text: A candidate memory text.
+
+    Returns:
+        A float between 0 and 1 representing the fraction of unique query
+        words that appear in the text.
+    """
+
+    query_words = set(WORD_RE.findall(query.lower()))
+    if not query_words:
+        return 0.0
+
+    text_words = set(WORD_RE.findall(text.lower()))
+    return len(query_words & text_words) / len(query_words)
 
 def store_memory(text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Store a new memory with duplicate detection.
@@ -323,11 +354,11 @@ def store_memory(text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
                                memory_id=memory_id[:8],
                                similarity_score=round(similarity, 4))
                     
-                    if similarity >= 0.85:
-                        logger.info("duplicate_detected", 
+                    if similarity >= DUPLICATE_THRESHOLD:
+                        logger.info("duplicate_detected",
                                    memory_id=memory_id[:8],
                                    similarity_score=round(similarity, 4),
-                                   threshold=0.85)
+                                   threshold=DUPLICATE_THRESHOLD)
                         conn.close()
                         return {
                             "duplicate_detected": True,
@@ -440,11 +471,13 @@ def query_memory(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
                 try:
                     memory_embedding = json.loads(embedding_json)
                     similarity = cosine_similarity(query_embedding, memory_embedding)
-                    
+                    keyword_boost = _keyword_overlap_score(normalized_query, text)
+                    combined = similarity + 0.1 * keyword_boost
+
                     results.append({
                         "memory_id": memory_id,
                         "text": text,
-                        "similarity_score": similarity
+                        "similarity_score": combined
                     })
                     
                 except (json.JSONDecodeError, TypeError) as e:
