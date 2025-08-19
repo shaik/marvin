@@ -10,13 +10,14 @@ import os
 import sqlite3
 import time
 import uuid
+import re
 from datetime import datetime
-from .utils.time import utc_now_iso_z
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from openai import OpenAI, OpenAIError
 
+from .utils.time import utc_now_iso_z
 from .api.exceptions import DatabaseError
 
 # Configure structured JSON logging
@@ -75,6 +76,12 @@ except Exception as e:
 
 # Database path from settings
 DB_PATH = settings.db_path
+
+# Duplicate detection threshold for cosine similarity
+DUPLICATE_THRESHOLD = 0.92
+
+# Precompiled word pattern for keyword overlap scoring
+WORD_RE = re.compile(r"\w+")
 
 # Embedding cache to reduce OpenAI API calls
 _embedding_cache: Dict[str, List[float]] = {}
@@ -279,13 +286,11 @@ def _keyword_overlap_score(query: str, text: str) -> float:
         A float between 0 and 1 representing the fraction of unique query
         words that appear in the text.
     """
-    import re
-
-    query_words = set(re.findall(r"\w+", query.lower()))
+    query_words = set(WORD_RE.findall(query.lower()))
     if not query_words:
         return 0.0
 
-    text_words = set(re.findall(r"\w+", text.lower()))
+    text_words = set(WORD_RE.findall(text.lower()))
     return len(query_words & text_words) / len(query_words)
 
 def store_memory(text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -348,11 +353,11 @@ def store_memory(text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
                                memory_id=memory_id[:8],
                                similarity_score=round(similarity, 4))
                     
-                    if similarity >= 0.85:
-                        logger.info("duplicate_detected", 
+                    if similarity >= DUPLICATE_THRESHOLD:
+                        logger.info("duplicate_detected",
                                    memory_id=memory_id[:8],
                                    similarity_score=round(similarity, 4),
-                                   threshold=0.85)
+                                   threshold=DUPLICATE_THRESHOLD)
                         conn.close()
                         return {
                             "duplicate_detected": True,

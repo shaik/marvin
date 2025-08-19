@@ -163,7 +163,7 @@ def test_duplicate_detection_live():
         
         # Verify similarity score if present
         if "similarity_score" in second_data:
-            assert second_data["similarity_score"] >= 0.85, f"Expected similarity >= 0.85, got {second_data['similarity_score']}"
+            assert second_data["similarity_score"] >= 0.92, f"Expected similarity >= 0.92, got {second_data['similarity_score']}"
         
         # Verify memory_id matches original (should reference existing memory)
         assert "memory_id" in second_data

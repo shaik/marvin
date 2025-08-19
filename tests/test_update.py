@@ -95,7 +95,7 @@ class TestUpdateFlow:
         assert "existing_memory_preview" in duplicate_data
         assert "2580" in duplicate_data["existing_memory_preview"]
         assert "similarity_score" in duplicate_data
-        assert duplicate_data["similarity_score"] >= 0.85
+        assert duplicate_data["similarity_score"] >= 0.92
         assert "memory_id" in duplicate_data
         assert duplicate_data["memory_id"] == stored_memory_id
         

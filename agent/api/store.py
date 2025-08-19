@@ -49,7 +49,7 @@ def get_settings() -> Settings:
     
     The system will:
     1. Generate an embedding for the input text using OpenAI
-    2. Check for duplicates using cosine similarity (threshold: 0.85)
+    2. Check for duplicates using cosine similarity (threshold: 0.92)
     3. Return duplicate information if found, or store the new memory
     
     Returns memory ID and duplicate detection results.

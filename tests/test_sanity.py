@@ -168,7 +168,7 @@ class TestDuplicateDetection:
         assert "existing_memory_preview" in second_store_data
         assert second_store_data["existing_memory_preview"] == "I lent a red pen to Alex."
         assert "similarity_score" in second_store_data
-        assert second_store_data["similarity_score"] >= 0.85  # Should be high similarity
+        assert second_store_data["similarity_score"] >= 0.92  # Should be high similarity
         
         # The memory_id should be the same as the original (existing memory)
         assert "memory_id" in second_store_data
