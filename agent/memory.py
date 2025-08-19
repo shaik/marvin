@@ -260,8 +260,33 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     # Calculate cosine similarity
     dot_product = np.dot(a_np, b_np)
     similarity = dot_product / (norm_a * norm_b)
-    
+
     return float(similarity)
+
+
+def _keyword_overlap_score(query: str, text: str) -> float:
+    """Calculate normalized keyword overlap between query and text.
+
+    This provides a simple lexical matching signal that boosts results
+    containing exact query terms (like specific colors) which embeddings
+    might treat as semantically similar.
+
+    Args:
+        query: The original query string.
+        text: A candidate memory text.
+
+    Returns:
+        A float between 0 and 1 representing the fraction of unique query
+        words that appear in the text.
+    """
+    import re
+
+    query_words = set(re.findall(r"\w+", query.lower()))
+    if not query_words:
+        return 0.0
+
+    text_words = set(re.findall(r"\w+", text.lower()))
+    return len(query_words & text_words) / len(query_words)
 
 def store_memory(text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Store a new memory with duplicate detection.
@@ -440,11 +465,13 @@ def query_memory(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
                 try:
                     memory_embedding = json.loads(embedding_json)
                     similarity = cosine_similarity(query_embedding, memory_embedding)
-                    
+                    keyword_boost = _keyword_overlap_score(normalized_query, text)
+                    combined = similarity + 0.1 * keyword_boost
+
                     results.append({
                         "memory_id": memory_id,
                         "text": text,
-                        "similarity_score": similarity
+                        "similarity_score": combined
                     })
                     
                 except (json.JSONDecodeError, TypeError) as e:
