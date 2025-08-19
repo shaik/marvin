@@ -50,6 +50,6 @@ jobs:
         working-directory: app
         env:
           CI: true
-        run: npm test -- --watchAll=false
+        run: npm test -- --watchAll=false --runInBand
 
  
