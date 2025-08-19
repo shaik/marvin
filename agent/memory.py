@@ -286,7 +286,6 @@ def _keyword_overlap_score(query: str, text: str) -> float:
         A float between 0 and 1 representing the fraction of unique query
         words that appear in the text.
     """
-
     query_words = set(WORD_RE.findall(query.lower()))
     if not query_words:
         return 0.0
