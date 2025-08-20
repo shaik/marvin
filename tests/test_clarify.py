@@ -67,6 +67,23 @@ def client(test_db):
             vector[0] = 0.9   # Higher weight to first memory
             vector[1] = 0.1   # Lower weight to second memory
             return vector
+        elif "The code for the red notebook is 1111" in text:
+            vector = [0.0] * 1536
+            vector[10] = 1.0
+            return vector
+        elif "The code for the blue notebook is 2222" in text:
+            vector = [0.0] * 1536
+            vector[11] = 1.0
+            return vector
+        elif "What is the notebook code?" in text:
+            vector = [0.0] * 1536
+            vector[10] = 1.0 / math.sqrt(2)
+            vector[11] = 1.0 / math.sqrt(2)
+            return vector
+        elif "the red one" in text.lower():
+            vector = [0.0] * 1536
+            vector[10] = 1.0
+            return vector
         else:
             # Default vector for any other text - orthogonal to all test vectors
             vector = [0.0] * 1536
@@ -257,7 +274,43 @@ class TestClarificationFlow:
             assert clarify_data["text"] == "Code for Dalia from work is 1234"
         else:
             assert clarify_data["text"] == "Code for Aunt Dalia is 2580"
-    
+
+    def test_clarify_endpoint_resolves_phrase_selection(self, client):
+        """Test that the clarify endpoint resolves selection using a descriptive phrase."""
+        memory1_payload = {
+            "text": "The code for the red notebook is 1111",
+            "language": "he",
+        }
+        memory2_payload = {
+            "text": "The code for the blue notebook is 2222",
+            "language": "he",
+        }
+
+        store1_response = client.post("/api/v1/store", json=memory1_payload)
+        assert store1_response.status_code == 201
+        memory1_id = store1_response.json()["memory_id"]
+
+        store2_response = client.post("/api/v1/store", json=memory2_payload)
+        assert store2_response.status_code == 201
+        memory2_id = store2_response.json()["memory_id"]
+
+        query_payload = {"query": "What is the notebook code?"}
+        query_response = client.post("/api/v1/query", json=query_payload)
+        assert query_response.status_code == 200
+        query_data = query_response.json()
+        assert query_data.get("clarification_required") is True
+
+        clarify_payload = {
+            "query": "What is the notebook code?",
+            "chosen_memory_phrase": "the red one",
+        }
+        clarify_response = client.post("/api/v1/clarify", json=clarify_payload)
+        assert clarify_response.status_code == 200
+        clarify_data = clarify_response.json()
+        assert clarify_data["clarification_resolved"] is True
+        assert clarify_data["memory_id"] == memory1_id
+        assert clarify_data["text"] == "The code for the red notebook is 1111"
+
     def test_clarify_endpoint_with_invalid_memory_id(self, client):
         """Test that clarify endpoint handles invalid memory IDs properly."""
         # Store at least one memory for context
@@ -328,23 +381,24 @@ class TestClarificationFlow:
         clarify_payload_missing_query = {
             "chosen_memory_id": "some-id"
         }
-        
+
         response = client.post("/api/v1/clarify", json=clarify_payload_missing_query)
         assert response.status_code == 422  # Validation error
-        
-        # Test missing chosen_memory_id field
-        clarify_payload_missing_id = {
+
+        # Test missing selection fields
+        clarify_payload_missing_selection = {
             "query": "What is Dalia's code?"
         }
-        
-        response = client.post("/api/v1/clarify", json=clarify_payload_missing_id)
-        assert response.status_code == 422  # Validation error
-        
+
+        response = client.post("/api/v1/clarify", json=clarify_payload_missing_selection)
+        assert response.status_code in [400, 422]  # Validation error
+
         # Test empty fields
         clarify_payload_empty = {
             "query": "",
-            "chosen_memory_id": ""
+            "chosen_memory_id": "",
+            "chosen_memory_phrase": ""
         }
-        
+
         response = client.post("/api/v1/clarify", json=clarify_payload_empty)
-        assert response.status_code == 422  # Validation error
+        assert response.status_code in [400, 422]  # Validation error
