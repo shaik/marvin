@@ -9,6 +9,7 @@ import re
 from ..memory import query_memory, get_memory_by_id, embed_text, cosine_similarity
 from ..config import Settings, settings
 from .models import QueryRequest, ClarifyRequest, ClarifyResponse, MemoryCandidate, ErrorResponse
+from .session_store import get_session_candidates
 from .exceptions import MemoryServiceError, InvalidInputError, OpenAIServiceError, DatabaseError
 from openai import OpenAIError
 import sqlite3
@@ -63,64 +64,49 @@ async def clarify_resolution_endpoint(
     logger.info(
         "Clarification resolution request received",
         extra={
-            "query_length": len(request.query),
+            "session_id": (request.session_id or "")[:8],
+            "query_length": len(request.query) if request.query else None,
             "chosen_memory_id": (request.chosen_memory_id or "")[:8],
             "chosen_memory_phrase": request.chosen_memory_phrase
+
         }
     )
 
     try:
         # Validate input
-        if not request.query.strip():
-            raise InvalidInputError("Query cannot be empty", field="query")
-
-        chosen_id = None
-        if request.chosen_memory_id and request.chosen_memory_id.strip():
-            chosen_id = request.chosen_memory_id.strip()
-        elif request.chosen_memory_phrase and request.chosen_memory_phrase.strip():
-            phrase = request.chosen_memory_phrase.strip()
-            candidates = query_memory(request.query.strip(), app_settings.clarify_min_candidates)
+        if request.session_id:
+            candidates = get_session_candidates(request.session_id.strip())
             if not candidates:
-                raise InvalidInputError("No candidates available for clarification", field="chosen_memory_phrase")
+                raise InvalidInputError("Session ID not found or expired", field="session_id")
 
-            phrase_words = set(re.findall(r"\w+", phrase.lower()))
-            best_candidate = None
-            best_overlap = 0
-            for cand in candidates:
-                cand_words = set(re.findall(r"\w+", cand["text"].lower()))
-                overlap = len(phrase_words & cand_words)
-                if overlap > best_overlap:
-                    best_overlap = overlap
-                    best_candidate = cand
+            if not any(c.memory_id == request.chosen_memory_id.strip() for c in candidates):
+                raise InvalidInputError("Chosen memory ID not found in session candidates", field="chosen_memory_id")
 
-            if best_candidate and best_overlap > 0:
-                chosen_id = best_candidate["memory_id"]
-            else:
-                phrase_embedding = embed_text(phrase)
-                best_candidate = max(
-                    candidates,
-                    key=lambda c: cosine_similarity(phrase_embedding, embed_text(c["text"]))
+            # Retrieve chosen memory
+            chosen_memory = get_memory_by_id(request.chosen_memory_id.strip())
+        else:
+            # Fallback to legacy behavior requiring query
+            if not request.query or not request.query.strip():
+                raise InvalidInputError("Query cannot be empty", field="query")
+
+            if not request.chosen_memory_id.strip():
+                raise InvalidInputError("Chosen memory ID cannot be empty", field="chosen_memory_id")
+
+            chosen_memory = get_memory_by_id(request.chosen_memory_id.strip())
+
+            if not chosen_memory:
+                logger.warning(
+                    "Clarification resolution failed - memory not found",
+                    extra={
+                        "chosen_memory_id": request.chosen_memory_id[:8],
+                        "query": request.query[:50] if request.query else None
+                    }
                 )
-                chosen_id = best_candidate["memory_id"] if best_candidate else None
-
-        if not chosen_id:
-            raise InvalidInputError("Either chosen_memory_id or chosen_memory_phrase must be provided", field="chosen_memory_id")
-
-        # Retrieve the chosen memory by ID
-        chosen_memory = get_memory_by_id(chosen_id)
-
-        if not chosen_memory:
-            logger.warning(
-                "Clarification resolution failed - memory not found",
-                extra={
-                    "chosen_memory_id": chosen_id[:8],
-                    "query": request.query[:50]
-                }
-            )
-            raise InvalidInputError(
-                f"Memory with ID {chosen_id[:8]} not found",
-                field="chosen_memory_id"
-            )
+                raise InvalidInputError(
+                    f"Memory with ID {request.chosen_memory_id[:8]} not found",
+                    field="chosen_memory_id"
+                )
+       
 
         # Log successful resolution
         logger.info(
@@ -128,7 +114,8 @@ async def clarify_resolution_endpoint(
             extra={
                 "chosen_memory_id": chosen_id[:8],
                 "resolved_text_length": len(chosen_memory["text"]),
-                "query": request.query[:50]
+                "session_id": (request.session_id or "")[:8],
+                "query": request.query[:50] if request.query else None
             }
         )
         
