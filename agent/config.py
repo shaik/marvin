@@ -117,6 +117,13 @@ class Settings(BaseSettings):
         env="LLM_DECIDER_CONFIDENCE_MIN",
         description="Minimum confidence threshold for LLM decisions (below triggers clarification)"
     )
+    # LLM Answer Generation Configuration
+    llm_answer_model: str = Field(
+        default="gpt-4o-mini",
+        env="LLM_ANSWER_MODEL",
+        description="OpenAI model used to generate natural language answers from memories",
+    )
+
     
     class Config:
         env_file = ".env"

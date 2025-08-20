@@ -25,6 +25,46 @@ def _looks_like_question(text: str) -> bool:
     return question_mark or any(word in text for word in question_words)
 
 
+def _generate_answer(query: str, candidates: list, language: str, client, app_settings) -> str:
+    """Generate a natural language answer from memory candidates.
+
+    Args:
+        query: Original user query.
+        candidates: List of memory dictionaries with 'text'.
+        language: Language code to respond in ("he", "en", etc.).
+        client: OpenAI client instance.
+        app_settings: Application settings with model configuration.
+
+    Returns:
+        Answer string synthesized from memories. Falls back to the top
+        candidate text if LLM synthesis fails.
+    """
+    if not candidates:
+        return "No results" if language != "he" else "לא מצאתי מידע"  # simple fallback
+
+    try:
+        memory_lines = "\n".join(f"- {c['text']}" for c in candidates)
+        system = (
+            "You are a helpful personal assistant. "
+            "Answer the user's question using the provided memories. "
+            "Refer to the user in the second person and respond in the same language."  # language via messages
+        )
+        user_content = f"Question: {query}\nMemories:\n{memory_lines}"
+        chat = client.chat.completions.create(
+            model=app_settings.llm_answer_model,
+            messages=[
+                {"role": "system", "content": system if language != 'he' else system + ' Respond in Hebrew.'},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0,
+        )
+        return chat.choices[0].message.content.strip()
+    except Exception:
+        # On any failure, fall back to the top candidate text
+        top = candidates[0]
+        return top.get("text", "")
+
+
 # Configure logger
 logger = logging.getLogger(__name__)
 
@@ -194,10 +234,11 @@ async def auto_endpoint(
 
         if chosen_action == "retrieve":
             candidates = query_memory(normalized_text)
+            answer = _generate_answer(normalized_text, candidates, language, client, app_settings)
             response = AutoResponse(
                 action="retrieve",
                 decision=decision,
-                result={"candidates": candidates},
+                result={"candidates": candidates, "answer": answer},
             )
             return JSONResponse(status_code=status.HTTP_200_OK, content=response.model_dump())
 
