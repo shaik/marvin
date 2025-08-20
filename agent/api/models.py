@@ -18,6 +18,12 @@ class QueryRequest(BaseModel):
     """Request model for querying memories."""
     query: str = Field(..., description="Search query text", min_length=1)
     top_k: int = Field(default=3, description="Number of top results to return", ge=1, le=100)
+    min_score: Optional[float] = Field(
+        default=None,
+        description="Minimum similarity score to include in results",
+        ge=0.0,
+        le=1.0,
+    )
 
 
 class UpdateRequest(BaseModel):
