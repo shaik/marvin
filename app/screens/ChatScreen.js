@@ -51,12 +51,14 @@ export default function ChatScreen() {
 
       if (action === 'retrieve') {
         const candidates = (json?.result?.candidates || json?.candidates || []);
-        if (Array.isArray(candidates) && candidates.length > 0) {
+        if (json?.result?.answer) {
+          assistantText = json.result.answer;
+        } else if (Array.isArray(candidates) && candidates.length > 0) {
           assistantText = candidates[0]?.text || String(candidates[0]);
-          moreCount = Math.max(0, candidates.length - 1);
         } else {
           assistantText = 'No results';
         }
+        moreCount = Math.max(0, candidates.length - 1);
       } else if (action === 'store') {
         const savedText = json?.decision?.normalized_text || json?.result?.text || trimmed;
         assistantText = `Saved: ${savedText}`;
