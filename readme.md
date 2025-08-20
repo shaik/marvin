@@ -21,7 +21,7 @@ Marvin is a semantic memory assistant with embedding-based storage, intelligent 
 ### Memory Operations
 - **Store Memories**: Natural language input with semantic embedding
 - **Query Memories**: Semantic search with similarity scoring
-- **Duplicate Detection**: Automatic detection with 85% similarity threshold
+- **Duplicate Detection**: Automatic detection with 97% similarity threshold
 - **Memory Management**: Update, delete, and retrieve specific memories
 
 ### Intelligent Clarification System

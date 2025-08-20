@@ -14,6 +14,17 @@ from agent.memory import store_memory, query_memory
 from agent.utils.time import utc_now_iso_z
 
 
+def _looks_like_question(text: str) -> bool:
+    """Simple heuristic to detect if text is a question.
+
+    Checks for a question mark or common Hebrew question words. Used to
+    override LLM misclassifications between store and retrieve actions.
+    """
+    question_mark = "?" in text
+    question_words = ["מה", "למה", "מתי", "מי", "כמה", "איך", "איפה"]
+    return question_mark or any(word in text for word in question_words)
+
+
 # Configure logger
 logger = logging.getLogger(__name__)
 
@@ -122,6 +133,13 @@ async def auto_endpoint(
         except Exception:
             confidence = 0.0
         reason = str(parsed.get("reason") or "")
+
+        # Simple heuristic override based on question detection
+        heuristic_question = _looks_like_question(user_prompt)
+        if heuristic_question and action == "store":
+            action = "retrieve"
+        elif not heuristic_question and action == "retrieve":
+            action = "store"
 
         # Apply threshold / force overrides
         chosen_action = action if action in {"store", "retrieve"} else "clarify"
