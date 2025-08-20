@@ -38,6 +38,7 @@ class CancelRequest(BaseModel):
 
 class ClarifyRequest(BaseModel):
     """Request model for clarification resolution."""
+    session_id: Optional[str] = Field(default=None, description="Session ID linking to prior query candidates")
     query: str = Field(..., description="Original query that needed clarification", min_length=1)
     chosen_memory_id: str = Field(..., description="UUID of the chosen memory from clarification candidates")
 
@@ -69,6 +70,7 @@ class MemoryCandidate(BaseModel):
 
 class QueryResponse(BaseModel):
     """Response model for memory query operation."""
+    session_id: str = Field(..., description="Session ID for tracking follow-up clarifications")
     candidates: List[MemoryCandidate] = Field(..., description="List of matching memory candidates")
     clarification_required: Optional[bool] = Field(default=None, description="Whether clarification is needed due to ambiguous results")
     clarification_question: Optional[str] = Field(default=None, description="Question to help user clarify their intent")

@@ -8,6 +8,7 @@ import logging
 from ..memory import query_memory
 from ..config import Settings, settings
 from .models import QueryRequest, QueryResponse, MemoryCandidate, ErrorResponse
+from .session_store import create_session
 from .exceptions import MemoryServiceError, InvalidInputError, OpenAIServiceError, DatabaseError
 from openai import OpenAIError
 import sqlite3
@@ -171,17 +172,22 @@ async def query_memory_endpoint(
                     }
                 )
         
+        # Store candidates in session for potential follow-up
+        session_id = create_session(memory_candidates)
+
         # Log success
         logger.info(
             "Query operation completed",
             extra={
                 "results_count": len(memory_candidates),
                 "top_scores": [c.similarity_score for c in memory_candidates[:3]],
-                "clarification_required": clarification_required
+                "clarification_required": clarification_required,
+                "session_id": session_id[:8],
             }
         )
-        
+
         return QueryResponse(
+            session_id=session_id,
             candidates=memory_candidates,
             clarification_required=clarification_required,
             clarification_question=clarification_question
