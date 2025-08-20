@@ -115,6 +115,13 @@ POST /api/v1/clarify
   "chosen_memory_id": "abc-123-def"
 }
 
+# or select by description
+POST /api/v1/clarify
+{
+  "query": "What is the notebook code?",
+  "chosen_memory_phrase": "the red one"
+}
+
 Response: {
   "clarification_resolved": true,
   "memory_id": "abc-123-def",

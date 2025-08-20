@@ -109,10 +109,28 @@ export async function queryMemory(query) {
   if (!query || typeof query !== 'string' || !query.trim()) {
     throw new Error("Query text is required and must be a non-empty string");
   }
-  
+
   return makeApiRequest('/api/v1/query', {
     query: query.trim()
   });
+}
+
+/**
+ * Resolve an ambiguous query by selecting a specific memory.
+ * @param {string} query - Original query text
+ * @param {{ id?: string, phrase?: string }} [opts] - Selection by ID or descriptive phrase
+ * @returns {Promise<Object>} API response { ok, status, json }
+ */
+export async function clarify(query, opts = {}) {
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    throw new Error("Query text is required and must be a non-empty string");
+  }
+
+  const body = { query: query.trim() };
+  if (opts.id) body.chosen_memory_id = opts.id;
+  if (opts.phrase) body.chosen_memory_phrase = opts.phrase;
+
+  return makeApiRequest('/api/v1/clarify', body);
 }
 
 /**

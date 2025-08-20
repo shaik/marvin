@@ -45,7 +45,8 @@ class CancelRequest(BaseModel):
 class ClarifyRequest(BaseModel):
     """Request model for clarification resolution."""
     query: str = Field(..., description="Original query that needed clarification", min_length=1)
-    chosen_memory_id: str = Field(..., description="UUID of the chosen memory from clarification candidates")
+    chosen_memory_id: Optional[str] = Field(default=None, description="UUID of the chosen memory from clarification candidates")
+    chosen_memory_phrase: Optional[str] = Field(default=None, description="Descriptive phrase identifying the chosen memory when ID is unknown")
 
 
 class AutoRequest(BaseModel):
