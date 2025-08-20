@@ -12,6 +12,7 @@ import openai
 import json
 from agent.memory import store_memory, query_memory
 from agent.utils.time import utc_now_iso_z
+import re
 
 
 def _looks_like_question(text: str) -> bool:
@@ -23,6 +24,32 @@ def _looks_like_question(text: str) -> bool:
     question_mark = "?" in text
     question_words = ["מה", "למה", "מתי", "מי", "כמה", "איך", "איפה"]
     return question_mark or any(word in text for word in question_words)
+
+
+def _rewrite_pronouns(text: str) -> str:
+    """Rewrite first-person pronouns to second person.
+
+    The replacement is intentionally minimal and deterministic, covering
+    common English pronouns. Case of the original word is preserved.
+    """
+
+    pronoun_map = {"i": "you", "me": "you", "my": "your", "mine": "yours"}
+
+    pattern = re.compile(r"\b(" + "|".join(pronoun_map.keys()) + r")\b", re.IGNORECASE)
+
+    def replace(match):
+        word = match.group(0)
+        repl = pronoun_map[word.lower()]
+        # Preserve case: fully uppercase words stay uppercase, initial caps
+        # become capitalized (e.g., "My" -> "Your"). Single-letter words
+        # like "I" should map to "You" rather than all caps.
+        if word.isupper() and len(word) > 1:
+            return repl.upper()
+        if word[0].isupper():
+            return repl.capitalize()
+        return repl
+
+    return pattern.sub(replace, text)
 
 
 def _generate_answer(query: str, candidates: list, language: str, client, app_settings) -> str:
@@ -60,9 +87,12 @@ def _generate_answer(query: str, candidates: list, language: str, client, app_se
         )
         return chat.choices[0].message.content.strip()
     except Exception:
-        # On any failure, fall back to the top candidate text
-        top = candidates[0]
-        return top.get("text", "")
+        # Deterministic fallback enumerating candidate memories with pronoun rewriting
+        processed = [
+            _rewrite_pronouns(c.get("text", "")) for c in candidates
+        ]
+        lines = [f"{idx + 1}. {text}" for idx, text in enumerate(processed)]
+        return "I found the following information:\n" + "\n".join(lines)
 
 
 # Configure logger
