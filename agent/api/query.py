@@ -115,7 +115,8 @@ async def query_memory_endpoint(
         "Query request received",
         extra={
             "query_length": len(request.query),
-            "top_k": request.top_k
+            "top_k": request.top_k,
+            "min_score": request.min_score,
         }
     )
     
@@ -126,9 +127,11 @@ async def query_memory_endpoint(
         
         if request.top_k <= 0 or request.top_k > 100:
             raise InvalidInputError("top_k must be between 1 and 100", field="top_k")
-        
+
         # Query memories
-        candidates = query_memory(request.query.strip(), request.top_k)
+        candidates = query_memory(
+            request.query.strip(), request.top_k, request.min_score
+        )
         
         # Convert to response models
         memory_candidates = [

@@ -428,36 +428,43 @@ def store_memory(text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
                     error_type=type(e).__name__)
         raise
 
-def query_memory(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+def query_memory(query: str, top_k: int = 3, min_score: Optional[float] = None) -> List[Dict[str, Any]]:
     """Query memories using semantic similarity search.
-    
+
     Generates an embedding for the query text and compares it against all
     stored memory embeddings to find the most semantically similar memories.
-    
+
     Args:
         query: Search query text.
         top_k: Number of top results to return (must be positive).
-        
+        min_score: Optional minimum similarity score threshold. When provided,
+            all memories meeting or exceeding this score are returned instead of
+            slicing the list to ``top_k``.
+
     Returns:
         List of dictionaries with memory_id, text, and similarity_score,
         sorted by similarity score in descending order.
-        
+
     Raises:
-        ValueError: If query is empty or top_k is invalid.
+        ValueError: If query is empty, top_k is invalid, or min_score is out of range.
         sqlite3.Error: If database operations fail.
         OpenAIError: If embedding generation fails.
     """
     if not query or not query.strip():
         raise ValueError("Query cannot be empty")
-    
+
     if not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("top_k must be a positive integer")
-    
+
+    if min_score is not None and not (0.0 <= min_score <= 1.0):
+        raise ValueError("min_score must be between 0 and 1")
+
     normalized_query = query.strip()
-    
-    logger.info("memory_query_started", 
+
+    logger.info("memory_query_started",
                query=normalized_query,
-               top_k=top_k)
+               top_k=top_k,
+               min_score=min_score)
     
     try:
         # Generate embedding for query
@@ -499,16 +506,22 @@ def query_memory(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
                                   error=str(e))
                     continue
             
-            # Sort by similarity (descending) and take top_k
+            # Sort by similarity (descending)
             results.sort(key=lambda x: x["similarity_score"], reverse=True)
-            top_results = results[:top_k]
-            
-            logger.info("memory_query_completed", 
-                       query=normalized_query,
-                       results_count=len(top_results),
-                       top_scores=[round(r["similarity_score"], 4) for r in top_results[:3]])
-            
-            return top_results
+
+            if min_score is not None:
+                filtered_results = [r for r in results if r["similarity_score"] >= min_score]
+            else:
+                filtered_results = results[:top_k]
+
+            logger.info(
+                "memory_query_completed",
+                query=normalized_query,
+                results_count=len(filtered_results),
+                top_scores=[round(r["similarity_score"], 4) for r in filtered_results[:3]],
+            )
+
+            return filtered_results
             
         finally:
             conn.close()

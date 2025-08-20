@@ -4,8 +4,9 @@ Clarify endpoint router for handling ambiguous queries.
 
 from fastapi import APIRouter, Depends, status
 import logging
+import re
 
-from ..memory import query_memory, get_memory_by_id
+from ..memory import query_memory, get_memory_by_id, embed_text, cosine_similarity
 from ..config import Settings, settings
 from .models import QueryRequest, ClarifyRequest, ClarifyResponse, MemoryCandidate, ErrorResponse
 from .session_store import get_session_candidates
@@ -65,10 +66,12 @@ async def clarify_resolution_endpoint(
         extra={
             "session_id": (request.session_id or "")[:8],
             "query_length": len(request.query) if request.query else None,
-            "chosen_memory_id": request.chosen_memory_id[:8]
+            "chosen_memory_id": (request.chosen_memory_id or "")[:8],
+            "chosen_memory_phrase": request.chosen_memory_phrase
+
         }
     )
-    
+
     try:
         # Validate input
         if request.session_id:
@@ -103,12 +106,13 @@ async def clarify_resolution_endpoint(
                     f"Memory with ID {request.chosen_memory_id[:8]} not found",
                     field="chosen_memory_id"
                 )
-        
+       
+
         # Log successful resolution
         logger.info(
             "Clarification resolved successfully",
             extra={
-                "chosen_memory_id": request.chosen_memory_id[:8],
+                "chosen_memory_id": chosen_id[:8],
                 "resolved_text_length": len(chosen_memory["text"]),
                 "session_id": (request.session_id or "")[:8],
                 "query": request.query[:50] if request.query else None
