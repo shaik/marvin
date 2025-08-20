@@ -230,6 +230,46 @@ class TestAutoEndpoint:
         assert "candidates" in data["result"]
 
     @patch('openai.OpenAI')
+    def test_retrieve_returns_multiple_matches(self, mock_openai_class, client_with_auth):
+        """Ensure retrieve action can return multiple matching memories."""
+        # Store two related memories
+        client_with_auth.post(
+            "/api/v1/store",
+            json={"text": "I left my blue shirt at home", "language": "en"},
+            headers={"X-API-KEY": "test-secret"}
+        )
+        client_with_auth.post(
+            "/api/v1/store",
+            json={"text": "I left my red shirt at the office", "language": "en"},
+            headers={"X-API-KEY": "test-secret"}
+        )
+
+        # Mock LLM to choose retrieve
+        mock_chat_response = MagicMock()
+        mock_chat_response.choices = [MagicMock()]
+        mock_chat_response.choices[0].message.content = json.dumps({
+            "action": "retrieve",
+            "normalized_text": "where is my shirt",
+            "language": "en",
+            "confidence": 0.9,
+            "reason": "User is asking about a stored shirt"
+        })
+
+        mock_openai_instance = mock_openai_class.return_value
+        mock_openai_instance.chat.completions.create.return_value = mock_chat_response
+
+        response = client_with_auth.post(
+            "/api/v1/auto",
+            json={"text": "Where is my shirt?"},
+            headers={"X-API-KEY": "test-secret"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "retrieve"
+        assert len(data["result"]["candidates"]) >= 2
+
+    @patch('openai.OpenAI')
     def test_action_clarify_on_low_confidence(self, mock_openai_class, client_with_auth):
         """Test clarify action when LLM returns low confidence."""
         # Mock LLM chat completion to return low confidence

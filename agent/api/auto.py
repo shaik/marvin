@@ -233,7 +233,8 @@ async def auto_endpoint(
             return JSONResponse(status_code=status_code, content=response.model_dump())
 
         if chosen_action == "retrieve":
-            candidates = query_memory(normalized_text)
+            # Use a higher top_k to allow multiple relevant memories to surface
+            candidates = query_memory(normalized_text, top_k=10)
             answer = _generate_answer(normalized_text, candidates, language, client, app_settings)
             response = AutoResponse(
                 action="retrieve",
