@@ -78,7 +78,9 @@ except Exception as e:
 DB_PATH = settings.db_path
 
 # Duplicate detection threshold for cosine similarity
-DUPLICATE_THRESHOLD = 0.92
+# Raised from 0.92 to 0.97 to reduce false positives between
+# similarly structured but different facts.
+DUPLICATE_THRESHOLD = 0.97
 
 # Precompiled word pattern for keyword overlap scoring
 WORD_RE = re.compile(r"\w+")
@@ -348,22 +350,34 @@ def store_memory(text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
                 try:
                     existing_embedding = json.loads(embedding_json)
                     similarity = cosine_similarity(new_embedding, existing_embedding)
-                    
-                    logger.info("similarity_calculated", 
-                               memory_id=memory_id[:8],
-                               similarity_score=round(similarity, 4))
-                    
-                    if similarity >= DUPLICATE_THRESHOLD:
-                        logger.info("duplicate_detected",
-                                   memory_id=memory_id[:8],
-                                   similarity_score=round(similarity, 4),
-                                   threshold=DUPLICATE_THRESHOLD)
+                    normalized_existing = existing_text.strip()
+
+                    logger.info(
+                        "similarity_calculated",
+                        memory_id=memory_id[:8],
+                        similarity_score=round(similarity, 4),
+                    )
+
+                    # Only treat as duplicate when the content matches exactly
+                    # and the similarity exceeds the threshold. This avoids
+                    # false positives for memories with similar structure but
+                    # different details (e.g., different people or codes).
+                    if (
+                        similarity >= DUPLICATE_THRESHOLD
+                        and normalized_text.casefold() == normalized_existing.casefold()
+                    ):
+                        logger.info(
+                            "duplicate_detected",
+                            memory_id=memory_id[:8],
+                            similarity_score=round(similarity, 4),
+                            threshold=DUPLICATE_THRESHOLD,
+                        )
                         conn.close()
                         return {
                             "duplicate_detected": True,
                             "existing_memory_preview": existing_text,
                             "similarity_score": similarity,
-                            "memory_id": memory_id
+                            "memory_id": memory_id,
                         }
                         
                 except (json.JSONDecodeError, TypeError) as e:
